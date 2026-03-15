@@ -17,7 +17,7 @@ export default {
   data(){ return { username:'', password:'' } },
   methods:{
     login(){
-      axios.post('/login', { username:this.username, password:this.password })
+      axios.post('/api/login', { username:this.username, password:this.password })
           .then(res=>{
             localStorage.setItem('token', res.data.token)
             // 解码 token 获取角色信息
