@@ -1,0 +1,9 @@
+services:
+  mall-admin-web:
+    container_name: mall-admin-web
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8081:80"
+    restart: unless-stopped

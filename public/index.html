@@ -1,0 +1,101 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>Admin Frontend (Preview)</title>
+  <link rel="stylesheet" href="https://unpkg.com/element-ui/lib/theme-chalk/index.css">
+  <style>
+    html, body, #app { height: 100%; margin: 0; }
+    .menu { height: 100%; }
+    .header { font-size: 18px; font-weight: 600; display: flex; align-items: center; }
+    .page { max-width: 420px; }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <el-container style="min-height: 100vh">
+      <el-aside width="220px">
+        <el-menu :default-active="active" class="menu" @select="active = $event">
+          <el-menu-item index="dashboard">Dashboard</el-menu-item>
+          <el-menu-item index="users">Users</el-menu-item>
+          <el-menu-item index="products">Products</el-menu-item>
+          <el-menu-item index="orders">Orders</el-menu-item>
+          <el-menu-item index="orders-management">Orders Management</el-menu-item>
+          <el-menu-item index="login">Login</el-menu-item>
+        </el-menu>
+      </el-aside>
+      <el-container>
+        <el-header class="header">Admin Panel</el-header>
+        <el-main>
+          <div v-if="active === 'dashboard'">
+            <el-card>
+              <h2>Dashboard</h2>
+              <p>Welcome to the admin dashboard.</p>
+            </el-card>
+          </div>
+          <div v-else-if="active === 'users'">
+            <el-card>
+              <h2>Users</h2>
+              <p>User management placeholder.</p>
+            </el-card>
+          </div>
+          <div v-else-if="active === 'products'">
+            <el-card>
+              <h2>Products</h2>
+              <p>Products list placeholder.</p>
+            </el-card>
+          </div>
+          <div v-else-if="active === 'orders'">
+            <el-card>
+              <h2>Orders</h2>
+              <el-table :data="orders" size="mini">
+                <el-table-column prop="id" label="ID" width="80"></el-table-column>
+                <el-table-column prop="status" label="Status"></el-table-column>
+                <el-table-column prop="amount" label="Amount"></el-table-column>
+              </el-table>
+            </el-card>
+          </div>
+          <div v-else-if="active === 'orders-management'">
+            <el-card>
+              <h2>Orders Management</h2>
+              <p>Orders management placeholder.</p>
+            </el-card>
+          </div>
+          <div v-else>
+            <el-card class="page">
+              <h2>Login</h2>
+              <el-form label-width="80px">
+                <el-form-item label="用户名">
+                  <el-input v-model="login.username"></el-input>
+                </el-form-item>
+                <el-form-item label="密码">
+                  <el-input v-model="login.password" type="password"></el-input>
+                </el-form-item>
+                <el-button type="primary">登录</el-button>
+              </el-form>
+            </el-card>
+          </div>
+        </el-main>
+      </el-container>
+    </el-container>
+  </div>
+
+  <script src="https://unpkg.com/vue@2.7.14/dist/vue.js"></script>
+  <script src="https://unpkg.com/element-ui@2.15.14/lib/index.js"></script>
+  <script>
+    new Vue({
+      el: '#app',
+      data: {
+        active: 'dashboard',
+        login: { username: '', password: '' },
+        orders: [
+          { id: 1, status: 'Paid', amount: 120 },
+          { id: 2, status: 'Pending', amount: 89 }
+        ]
+      }
+    });
+  </script>
+</body>
+</html>
