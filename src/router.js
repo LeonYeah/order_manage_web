@@ -1,4 +1,4 @@
-﻿import Vue from 'vue'
+import Vue from 'vue'
 import Router from 'vue-router'
 import Login from './views/Login.vue'
 import Dashboard from './views/Dashboard.vue'
@@ -10,12 +10,13 @@ import OrdersManagement from './views/OrdersManagement.vue'
 Vue.use(Router)
 
 export default new Router({
-  routes:[
-    { path:'/', component:Login },
-    { path:'/dashboard', component:Dashboard, meta:{ requiresAuth:true } },
-    { path:'/users', component:Users, meta:{ requiresAuth:true, roles:['admin'] } }, // 仅管理员可访问
-    { path:'/products', component:Products, meta:{ requiresAuth:true } },
-    { path:'/orders', component:Orders, meta:{ requiresAuth:true, roles:['clerk','admin'] } }, // 制单员/管理员可访问
-    { path:'/orders-management', component:OrdersManagement, meta:{ requiresAuth:true, roles:['admin'] } } // 仅管理员
+  routes: [
+    { path: '/', redirect: '/login' },
+    { path: '/login', component: Login, meta: { layout: 'blank' } },
+    { path: '/dashboard', component: Dashboard, meta: { requiresAuth: true } },
+    { path: '/users', component: Users, meta: { requiresAuth: true, roles: ['admin'] } },
+    { path: '/products', component: Products, meta: { requiresAuth: true } },
+    { path: '/orders', component: Orders, meta: { requiresAuth: true, roles: ['clerk', 'admin'] } },
+    { path: '/orders-management', component: OrdersManagement, meta: { requiresAuth: true, roles: ['admin'] } }
   ]
 })

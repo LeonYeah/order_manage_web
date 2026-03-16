@@ -1,4 +1,4 @@
-﻿import Vue from 'vue'
+import Vue from 'vue'
 import App from './App.vue'
 import router from './router'
 import ElementUI from 'element-ui'
@@ -10,17 +10,36 @@ Vue.use(ElementUI)
 axios.defaults.baseURL = 'http://localhost:5000/api'
 axios.interceptors.request.use(config => {
   const token = localStorage.getItem('token')
-  if(token) config.headers.Authorization = token
+  if (token) config.headers.Authorization = token
   return config
 })
 
-// 路由守卫：检查登录和权限
+function normalizeRole(role) {
+  if (['admin', 'ADMIN', '管理员'].includes(role)) return 'admin'
+  if (['clerk', 'CLERK', '制单员'].includes(role)) return 'clerk'
+  return role
+}
+
+// Route guard for auth and role checks.
 router.beforeEach((to, from, next) => {
   const user = JSON.parse(localStorage.getItem('user'))
-  if(to.meta.requiresAuth && !user){
-    next({ path:'/' })
-  } else if(to.meta.roles && user && !to.meta.roles.includes(user.role)){
-    next({ path:'/dashboard' }) // 没权限跳到首页
+  if (user && user.role) {
+    user.role = normalizeRole(user.role)
+  }
+
+  if (to.path === '/login') {
+    if (user) {
+      next({ path: '/dashboard' })
+    } else {
+      next()
+    }
+    return
+  }
+
+  if (to.meta.requiresAuth && !user) {
+    next({ path: '/login' })
+  } else if (to.meta.roles && user && !to.meta.roles.includes(user.role)) {
+    next({ path: '/dashboard' })
   } else {
     next()
   }

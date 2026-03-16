@@ -1,16 +1,18 @@
-FROM m.daocloud.io/docker.io/library/node:16-alpine AS build
+FROM swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/library/node:18-bullseye-slim
 
-WORKDIR /app
+RUN sed -i 's|deb.debian.org|mirrors.aliyun.com|g' /etc/apt/sources.list \
+    && sed -i 's|security.debian.org|mirrors.aliyun.com|g' /etc/apt/sources.list
 
+WORKDIR /workspace
+
+# 复制 package.json 先安装依赖（利用缓存）
 COPY package*.json ./
-RUN npm ci
+RUN npm install
 
+# 再复制其余文件
 COPY . .
-RUN npm run build
 
-FROM m.daocloud.io/docker.io/library/nginx:1.27-alpine
+EXPOSE 8090
 
-COPY nginx.conf /etc/nginx/conf.d/default.conf
-COPY --from=build /app/dist /usr/share/nginx/html
-
-EXPOSE 80
+# 关键：监听 0.0.0.0
+CMD ["npm","run","dev","--","--host","0.0.0.0"]
