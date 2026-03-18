@@ -2,10 +2,11 @@ import Vue from 'vue'
 import App from './App.vue'
 import router from './router'
 import ElementUI from 'element-ui'
+import locale from 'element-ui/lib/locale/lang/zh-CN'
 import 'element-ui/lib/theme-chalk/index.css'
 import axios from 'axios'
 
-Vue.use(ElementUI)
+Vue.use(ElementUI, { locale })
 
 axios.defaults.baseURL = 'http://localhost:5000/api'
 axios.interceptors.request.use(config => {

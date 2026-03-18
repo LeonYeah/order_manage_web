@@ -7,7 +7,12 @@
           <el-input v-model="username" placeholder="请输入用户名" />
         </el-form-item>
         <el-form-item>
-          <el-input v-model="password" type="password" placeholder="请输入密码" show-password />
+          <el-input
+            v-model="password"
+            type="password"
+            placeholder="请输入密码"
+            show-password
+          />
         </el-form-item>
         <el-button type="primary" class="login-button" @click="login">登录</el-button>
       </el-form>
@@ -26,12 +31,21 @@ export default {
     }
   },
   methods: {
+    buildUserFromResponse(response) {
+      const token = response && response.token
+      const payload = token ? JSON.parse(atob(token.split('.')[1])) : {}
+
+      return {
+        id: payload.user_id || payload.id || null,
+        username: (response && response.username) || this.username,
+        role: payload.role || (response && response.role) || ''
+      }
+    },
     login() {
       axios.post('/login', { username: this.username, password: this.password })
         .then(res => {
           localStorage.setItem('token', res.data.token)
-          const payload = JSON.parse(atob(res.data.token.split('.')[1]))
-          localStorage.setItem('user', JSON.stringify({ id: payload.user_id, role: payload.role }))
+          localStorage.setItem('user', JSON.stringify(this.buildUserFromResponse(res.data)))
           this.$router.push('/dashboard')
         })
         .catch(() => {

@@ -17,6 +17,6 @@ export default new Router({
     { path: '/users', component: Users, meta: { requiresAuth: true, roles: ['admin'] } },
     { path: '/products', component: Products, meta: { requiresAuth: true } },
     { path: '/orders', component: Orders, meta: { requiresAuth: true, roles: ['clerk', 'admin'] } },
-    { path: '/orders-management', component: OrdersManagement, meta: { requiresAuth: true, roles: ['admin'] } }
+    { path: '/orders-management', component: OrdersManagement, meta: { requiresAuth: true, roles: ['admin', 'clerk'] } }
   ]
 })
