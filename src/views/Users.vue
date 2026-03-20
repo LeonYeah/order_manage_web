@@ -23,12 +23,12 @@
       <el-table
         v-else
         v-loading="loading"
-        :data="users"
+        :data="pagedUsers"
         border
         style="width: 100%"
         empty-text="暂无用户数据"
       >
-        <el-table-column prop="id" label="ID" width="80" />
+        <el-table-column type="index" label="序号" width="80" :index="userIndexMethod" />
         <el-table-column prop="username" label="用户名" min-width="180" />
         <el-table-column label="角色" width="140">
           <template slot-scope="scope">
@@ -48,6 +48,17 @@
           </template>
         </el-table-column>
       </el-table>
+      <div v-if="isAdmin" class="pagination-wrap">
+        <div class="page-tip">第 {{ currentPage }} / {{ totalUserPages }} 页</div>
+        <el-pagination
+          background
+          :current-page="currentPage"
+          :page-size="pageSize"
+          :total="totalUsers"
+          layout="prev, pager, next, jumper"
+          @current-change="handleUserPageChange"
+        />
+      </div>
     </el-card>
 
     <el-dialog title="新增用户" :visible.sync="createDialogVisible" width="460px">
@@ -123,12 +134,24 @@ export default {
         role: [
           { required: true, message: '请选择角色', trigger: 'change' }
         ]
-      }
+      },
+      currentPage: 1,
+      pageSize: 10
     }
   },
   computed: {
     isAdmin() {
       return this.isAdminRole(this.currentUser.role)
+    },
+    totalUsers() {
+      return this.users.length
+    },
+    totalUserPages() {
+      return Math.max(1, Math.ceil(this.totalUsers / this.pageSize))
+    },
+    pagedUsers() {
+      const start = (this.currentPage - 1) * this.pageSize
+      return this.users.slice(start, start + this.pageSize)
     }
   },
   created() {
@@ -157,6 +180,7 @@ export default {
       axios.get('/users')
         .then(res => {
           this.users = this.normalizeUsers(res.data)
+          this.currentPage = 1
         })
         .catch(() => {
           this.$message.error('用户列表加载失败')
@@ -227,15 +251,23 @@ export default {
     },
     formatDate(value) {
       if (!value) return '-'
-      const date = new Date(value)
-      if (Number.isNaN(date.getTime())) return value
+      const text = String(value)
+      const matched = text.match(/^(\d{4})[-/](\d{2})[-/](\d{2})/)
+      if (matched) return `${matched[1]}${matched[2]}${matched[3]}`
+
+      const date = new Date(text)
+      if (Number.isNaN(date.getTime())) return text
 
       const yyyy = date.getFullYear()
       const mm = `${date.getMonth() + 1}`.padStart(2, '0')
       const dd = `${date.getDate()}`.padStart(2, '0')
-      const hh = `${date.getHours()}`.padStart(2, '0')
-      const mi = `${date.getMinutes()}`.padStart(2, '0')
-      return `${yyyy}-${mm}-${dd} ${hh}:${mi}`
+      return `${yyyy}${mm}${dd}`
+    },
+    handleUserPageChange(page) {
+      this.currentPage = page
+    },
+    userIndexMethod(index) {
+      return (this.currentPage - 1) * this.pageSize + index + 1
     }
   }
 }
@@ -261,5 +293,17 @@ export default {
 .page-desc {
   margin: 8px 0 0;
   color: #909399;
+}
+
+.pagination-wrap {
+  margin-top: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.page-tip {
+  font-size: 13px;
+  color: #606266;
 }
 </style>

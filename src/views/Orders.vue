@@ -3,32 +3,44 @@
     <div class="order-header">
       <h2>商品定制工业单</h2>
       <div class="order-meta">
-        <div class="meta-item">
-          客户名称：
-          <el-input v-model.trim="order.customer_name" style="width: 220px" />
-        </div>
         <div class="meta-item">订单编号：{{ order.order_number || '自动生成中' }}</div>
         <div class="meta-item">
+          客户名称：
+          <el-input v-model.trim="order.customer_name" style="width: 150px" />
+        </div>
+        <div class="meta-item order-date-item">
           下单日期：
           <el-date-picker
             v-model="order.order_date"
             type="date"
             format="yyyyMMdd"
             value-format="yyyy-MM-dd"
+            class="order-date-picker"
             placeholder="选择日期"
             @change="refreshOrderNumber"
           />
         </div>
         <div class="meta-item">
-          结账方式：
-          <el-select v-model="order.payment_method" placeholder="选择结账方式" style="width: 180px">
-            <el-option label="微信" value="微信" />
-            <el-option label="支付宝" value="支付宝" />
-            <el-option label="百会彩" value="百会彩" />
-            <el-option label="银城" value="银城" />
-            <el-option label="艺彩" value="艺彩" />
+          结账状态：
+          <el-select
+            v-model="order.settlement_status"
+            placeholder="选择结账状态"
+            style="width: 96px"
+            @change="handleSettlementStatusChange"
+          >
+            <el-option label="已结账" value="已结账" />
+            <el-option label="未结账" value="未结账" />
           </el-select>
         </div>
+        <div v-if="order.settlement_status === '已结账'" class="meta-item">
+          结账方式：
+          <el-select v-model="order.payment_method" placeholder="选择结账方式" style="width: 120px">
+            <el-option label="微信" value="微信" />
+            <el-option label="支付宝" value="支付宝" />
+            <el-option label="现金" value="现金" />
+          </el-select>
+        </div>
+        <div v-else class="meta-item settlement-hint">未结账订单会提醒管理员和对应制单员 3 天</div>
       </div>
     </div>
 
@@ -41,15 +53,15 @@
           </el-select>
         </template>
       </el-table-column>
-      <el-table-column prop="product_code" label="商品编号" min-width="110" />
-      <el-table-column prop="english_name" label="英文名称" min-width="130" />
+      <el-table-column prop="product_code" label="商品编号" min-width="96" />
+      <el-table-column prop="english_name" label="英文名称" min-width="118" />
       <el-table-column prop="capacity" label="容量" width="86" />
-      <el-table-column prop="quantity" label="数量" width="96">
+      <el-table-column prop="quantity" label="数量" width="118">
         <template slot-scope="scope">
           <el-input-number v-model="scope.row.quantity" size="mini" :min="1" @change="updateAmountFromUnitPrice(scope.row)" />
         </template>
       </el-table-column>
-      <el-table-column prop="unit_price" label="单价" width="118">
+      <el-table-column prop="unit_price" label="单价(元)" width="118">
         <template slot-scope="scope">
           <el-input-number
             v-model="scope.row.unit_price"
@@ -62,7 +74,7 @@
           />
         </template>
       </el-table-column>
-      <el-table-column prop="amount" label="金额" width="118">
+      <el-table-column prop="amount" label="金额(元)" width="118">
         <template slot-scope="scope">
           <el-input-number
             v-model="scope.row.amount"
@@ -75,7 +87,7 @@
           />
         </template>
       </el-table-column>
-      <el-table-column prop="sample_date" label="来样日期" width="136">
+      <el-table-column prop="sample_date" label="来样日期" width="152">
         <template slot-scope="scope">
           <el-date-picker
             v-model="scope.row.sample_date"
@@ -102,7 +114,19 @@
     <el-button type="primary" @click="addItem" style="margin: 10px 0">添加商品</el-button>
 
     <div class="order-footer">
-      <div class="footer-item">
+      <div class="footer-item no-wrap">
+        优惠：
+        <el-input-number
+          v-model="order.discount_amount"
+          :min="0"
+          :precision="2"
+          :step="0.1"
+          controls-position="right"
+          @change="updateTotal"
+        />
+        <span class="amount-unit">元</span>
+      </div>
+      <div class="footer-item no-wrap">
         运费：
         <el-input-number
           v-model="order.shipping_fee"
@@ -112,12 +136,13 @@
           controls-position="right"
           @change="updateTotal"
         />
+        <span class="amount-unit">元</span>
       </div>
       <div class="footer-item">
         订单备注：
-        <el-input v-model.trim="order.remark" placeholder="订单备注" style="width: 260px" />
+        <el-input v-model.trim="order.remark" placeholder="订单备注" style="width: 176px" />
       </div>
-      <div class="footer-total">总金额：{{ order.total_amount.toFixed(2) }}</div>
+      <div class="footer-total">总金额：{{ order.total_amount.toFixed(2) }}元</div>
     </div>
 
     <div class="order-actions">
@@ -152,8 +177,10 @@ export default {
         order_number: '',
         order_date: '',
         shipping_fee: 0,
+        discount_amount: 0,
         total_amount: 0,
-        payment_method: '微信',
+        settlement_status: '未结账',
+        payment_method: '',
         remark: '',
         items: []
       },
@@ -233,7 +260,15 @@ export default {
     },
     updateTotal() {
       const itemsAmount = this.order.items.reduce((sum, item) => sum + Number(item.amount || 0), 0)
-      this.order.total_amount = Number((itemsAmount + Number(this.order.shipping_fee || 0)).toFixed(2))
+      const rawTotal = itemsAmount + Number(this.order.shipping_fee || 0) - Number(this.order.discount_amount || 0)
+      this.order.total_amount = Number(Math.max(0, rawTotal).toFixed(2))
+    },
+    handleSettlementStatusChange(value) {
+      if (value === '未结账') {
+        this.order.payment_method = ''
+      } else if (!this.order.payment_method) {
+        this.order.payment_method = '微信'
+      }
     },
     validateOrder() {
       if (!this.order.customer_name) {
@@ -251,6 +286,11 @@ export default {
         return false
       }
 
+      if (this.order.settlement_status === '已结账' && !this.order.payment_method) {
+        this.$message.error('请选择结账方式')
+        return false
+      }
+
       return true
     },
     buildPayload() {
@@ -261,8 +301,10 @@ export default {
         clerk_id: this.currentUser.id,
         order_date: this.formatDate(this.order.order_date),
         shipping_fee: Number(this.order.shipping_fee || 0),
+        discount_amount: Number(this.order.discount_amount || 0),
         total_amount: Number(this.order.total_amount || 0),
-        payment_method: this.order.payment_method,
+        settlement_status: this.order.settlement_status,
+        payment_method: this.order.settlement_status === '已结账' ? this.order.payment_method : '',
         remark: this.order.remark,
         items: this.order.items.map(item => ({
           product_id: item.product_id,
@@ -313,20 +355,104 @@ export default {
           this.savingAndPrinting = false
         })
     },
+    escapeHtml(value) {
+      return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;')
+    },
+    printCell(value) {
+      const text = value === null || value === undefined ? '' : String(value).trim()
+      return this.escapeHtml(text || '/')
+    },
+    printAmount(value) {
+      const num = Number(value)
+      if (Number.isNaN(num)) return '/'
+      return `${num.toFixed(2)}元`
+    },
+    getProductNameById(productId) {
+      const product = this.products.find(item => item.id === productId)
+      return (product && product.name) || ''
+    },
+    buildPrintHtml() {
+      const rows = (this.order.items || []).map((item, index) => `
+        <tr>
+          <td>${index + 1}</td>
+          <td>${this.printCell(this.getProductNameById(item.product_id))}</td>
+          <td>${this.printCell(item.product_code)}</td>
+          <td>${this.printCell(item.english_name)}</td>
+          <td>${this.printCell(item.capacity)}</td>
+          <td>${this.printCell(item.quantity)}</td>
+          <td>${this.printCell(item.sample_date)}</td>
+          <td>${this.printCell(item.remark)}</td>
+        </tr>
+      `).join('')
+
+      const copySection = `
+        <section class="copy">
+          <div class="title">商品定制工业单</div>
+          <div class="meta">
+            <div>订单编号：${this.printCell(this.order.order_number)}</div>
+            <div>下单日期：${this.printCell((this.order.order_date || '').replace(/-/g, ''))}</div>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th style="width:4%">序号</th>
+                <th style="width:12%">商品名称</th>
+                <th style="width:10%">商品编号</th>
+                <th style="width:12%">英文名称</th>
+                <th style="width:10%">容量</th>
+                <th style="width:10%">数量</th>
+                <th style="width:14%">来样日期</th>
+                <th style="width:28%">备注</th>
+              </tr>
+            </thead>
+            <tbody>${rows || '<tr><td colspan="8">/</td></tr>'}</tbody>
+          </table>
+        </section>
+      `
+
+      return `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="UTF-8" />
+          <title>订单打印</title>
+          <style>
+            @page { size: A4 portrait; margin: 8mm; }
+            body { font-family: "Microsoft YaHei", sans-serif; margin: 0; color: #111; }
+            .sheet { height: 280mm; display: flex; flex-direction: column; }
+            .copy { flex: 1; min-height: 0; overflow: hidden; }
+            .copy-sep { border-top: 1px dashed #666; margin: 2mm 0; }
+            .title { text-align: center; font-size: 14px; font-weight: 700; margin-bottom: 6px; }
+            .meta { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-bottom: 6px; font-size: 10px; }
+            table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+            th, td { border: 1px solid #333; padding: 2px 2px; font-size: 9px; text-align: center; word-break: break-all; line-height: 1.2; }
+            thead th { background: #f3f3f3; font-weight: 600; }
+            .summary { margin-top: 4px; display: flex; gap: 10px; font-size: 10px; flex-wrap: wrap; }
+          </style>
+        </head>
+        <body>
+          <div class="sheet">
+            ${copySection}
+            <div class="copy-sep"></div>
+            ${copySection}
+            <div class="copy-sep"></div>
+            ${copySection}
+            <div class="copy-sep"></div>
+            ${copySection}
+          </div>
+        </body>
+        </html>
+      `
+    },
     printOrder() {
-      const printContent = document.createElement('div')
-      for (let i = 0; i < 4; i += 1) {
-        const clone = this.$el.cloneNode(true)
-        const hr = document.createElement('hr')
-        hr.style.border = '1px dashed #000'
-        hr.style.margin = '20px 0'
-        printContent.appendChild(clone)
-        if (i < 3) printContent.appendChild(hr)
-      }
       const printWindow = window.open('', '', 'width=800,height=600')
-      printWindow.document.write('<html><head><title>订单打印</title></head><body>')
-      printWindow.document.body.appendChild(printContent)
-      printWindow.document.write('</body></html>')
+      if (!printWindow) return
+      printWindow.document.write(this.buildPrintHtml())
       printWindow.document.close()
       printWindow.focus()
       printWindow.print()
@@ -353,6 +479,18 @@ export default {
   font-size: 14px;
 }
 
+.order-date-item {
+  white-space: nowrap;
+}
+
+.order-date-picker {
+  width: 110px;
+}
+
+.settlement-hint {
+  color: #e6a23c;
+}
+
 .order-footer {
   display: flex;
   flex-wrap: wrap;
@@ -365,6 +503,14 @@ export default {
 .footer-item {
   display: flex;
   align-items: center;
+}
+
+.no-wrap {
+  white-space: nowrap;
+}
+
+.amount-unit {
+  margin-left: 6px;
 }
 
 .footer-total {

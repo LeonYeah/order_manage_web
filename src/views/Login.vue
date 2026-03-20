@@ -4,7 +4,7 @@
       <h1 class="login-title">订单管理系统</h1>
       <el-form @submit.native.prevent="login">
         <el-form-item>
-          <el-input v-model="username" placeholder="请输入用户名" />
+          <el-input v-model="username" placeholder="请输入用户名" @keyup.enter.native="login" />
         </el-form-item>
         <el-form-item>
           <el-input
@@ -12,6 +12,7 @@
             type="password"
             placeholder="请输入密码"
             show-password
+            @keyup.enter.native="login"
           />
         </el-form-item>
         <el-button type="primary" class="login-button" @click="login">登录</el-button>

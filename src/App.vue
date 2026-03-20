@@ -2,13 +2,14 @@
   <router-view v-if="isLoginPage" />
   <el-container v-else class="app-shell">
     <el-aside width="220px" class="app-aside">
-      <div class="brand">订单管理系统</div>
       <div class="user-panel">
-        <div class="user-name">{{ displayName }}</div>
-        <div class="user-actions">
+        <div class="user-center">
+          <div class="user-name">{{ displayName }}</div>
           <el-tag size="mini" :type="user.role === 'admin' ? 'danger' : 'success'">
             {{ user.role === 'admin' ? '管理员' : '制单员' }}
           </el-tag>
+        </div>
+        <div class="user-actions">
           <el-button type="text" class="logout-button" @click="logout">退出登录</el-button>
         </div>
       </div>
@@ -18,6 +19,7 @@
         <el-menu-item v-if="user.role === 'admin'" index="/users" @click="$router.push('/users')">用户管理</el-menu-item>
         <el-menu-item index="/products" @click="$router.push('/products')">商品管理</el-menu-item>
         <el-menu-item v-if="['admin', 'clerk'].includes(user.role)" index="/orders-management" @click="$router.push('/orders-management')">订单管理</el-menu-item>
+        <el-menu-item v-if="['admin', 'clerk'].includes(user.role)" index="/checkout-review" @click="$router.push('/checkout-review')">反结账管理</el-menu-item>
       </el-menu>
     </el-aside>
     <el-container>
@@ -84,31 +86,34 @@ export default {
   border-right: 1px solid #ebeef5;
 }
 
-.brand {
-  padding: 20px 16px 8px;
-  font-size: 20px;
-  font-weight: 600;
-  color: #303133;
-}
-
 .user-panel {
-  padding: 0 16px 16px;
+  padding: 18px 16px 16px;
+  background: #f3f7ff;
+  border-bottom: 1px solid #ebeef5;
 }
 
 .user-name {
-  margin-bottom: 8px;
-  color: #303133;
-  font-weight: 500;
+  color: #2b5da8;
+  font-weight: 600;
+  font-size: 18px;
+  text-align: left;
+  line-height: 1.2;
+  margin-bottom: 6px;
 }
 
 .user-actions {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 8px;
 }
 
 .logout-button {
   padding: 0;
+}
+
+.user-center {
+  margin-bottom: 8px;
+  text-align: left;
 }
 </style>
