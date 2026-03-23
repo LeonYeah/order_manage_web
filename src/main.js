@@ -1,4 +1,4 @@
-import Vue from 'vue'
+﻿import Vue from 'vue'
 import App from './App.vue'
 import router from './router'
 import ElementUI from 'element-ui'
@@ -10,7 +10,7 @@ Vue.use(ElementUI, { locale })
 
 axios.defaults.baseURL = 'http://localhost:5000/api'
 axios.interceptors.request.use(config => {
-  const token = localStorage.getItem('token')
+  const token = sessionStorage.getItem('token')
   if (token) config.headers.Authorization = token
   return config
 })
@@ -23,7 +23,7 @@ function normalizeRole(role) {
 
 // Route guard for auth and role checks.
 router.beforeEach((to, from, next) => {
-  const user = JSON.parse(localStorage.getItem('user'))
+  const user = JSON.parse(sessionStorage.getItem('user'))
   if (user && user.role) {
     user.role = normalizeRole(user.role)
   }
@@ -50,3 +50,4 @@ new Vue({
   router,
   render: h => h(App)
 }).$mount('#app')
+

@@ -88,7 +88,7 @@ export default {
       selectedRows: [],
       currentPage: 1,
       pageSize: 10,
-      currentUser: JSON.parse(localStorage.getItem('user')) || {},
+      currentUser: JSON.parse(sessionStorage.getItem('user')) || {},
       form: createEmptyForm(),
       editForm: {
         id: null,
@@ -243,3 +243,4 @@ export default {
   color: #606266;
 }
 </style>
+

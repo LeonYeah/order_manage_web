@@ -231,7 +231,7 @@ export default {
       showDialog: false,
       currentOrderId: null,
       copying: false,
-      currentUser: JSON.parse(localStorage.getItem('user')) || {},
+      currentUser: JSON.parse(sessionStorage.getItem('user')) || {},
       currentPage: 1,
       pageSize: 10,
       contextMenu: {
@@ -550,3 +550,4 @@ export default {
   white-space: nowrap;
 }
 </style>
+

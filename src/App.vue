@@ -63,15 +63,15 @@ export default {
       return role || ''
     },
     syncUser() {
-      const user = JSON.parse(localStorage.getItem('user')) || {}
+      const user = JSON.parse(sessionStorage.getItem('user')) || {}
       this.user = {
         ...user,
         role: this.normalizeRole(user.role)
       }
     },
     logout() {
-      localStorage.removeItem('token')
-      localStorage.removeItem('user')
+      sessionStorage.removeItem('token')
+      sessionStorage.removeItem('user')
       this.user = {}
       this.$router.push('/login')
     }
@@ -120,3 +120,4 @@ export default {
   text-align: left;
 }
 </style>
+

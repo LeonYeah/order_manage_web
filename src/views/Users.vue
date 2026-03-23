@@ -1,10 +1,10 @@
-<template>
+﻿<template>
   <div class="users-page">
     <el-card shadow="never">
       <div slot="header" class="page-header">
         <div>
           <h2 class="page-title">用户管理</h2>
-          <p class="page-desc">仅管理员可以查看列表、新增用户并分配角色。</p>
+          <p class="page-desc">仅管理员可查看并新增用户。</p>
         </div>
         <div class="header-actions" v-if="isAdmin">
           <el-button @click="getUsers">刷新</el-button>
@@ -42,12 +42,8 @@
             {{ formatDate(scope.row.created_at) }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="160">
-          <template slot-scope="scope">
-            <el-button type="text" @click="openRoleDialog(scope.row)">分配角色</el-button>
-          </template>
-        </el-table-column>
       </el-table>
+
       <div v-if="isAdmin" class="pagination-wrap">
         <div class="page-tip">第 {{ currentPage }} / {{ totalUserPages }} 页</div>
         <el-pagination
@@ -81,24 +77,6 @@
         <el-button type="primary" :loading="submitting" @click="createUser">确定</el-button>
       </div>
     </el-dialog>
-
-    <el-dialog title="分配角色" :visible.sync="roleDialogVisible" width="420px">
-      <el-form label-width="90px">
-        <el-form-item label="用户名">
-          <el-input :value="selectedUser.username" disabled />
-        </el-form-item>
-        <el-form-item label="角色">
-          <el-select v-model="roleForm.role" style="width: 100%">
-            <el-option label="管理员" value="admin" />
-            <el-option label="制单员" value="clerk" />
-          </el-select>
-        </el-form-item>
-      </el-form>
-      <div slot="footer">
-        <el-button @click="roleDialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="submitting" @click="updateRole">保存</el-button>
-      </div>
-    </el-dialog>
   </div>
 </template>
 
@@ -114,14 +92,9 @@ export default {
       users: [],
       currentUser: {},
       createDialogVisible: false,
-      roleDialogVisible: false,
-      selectedUser: {},
       createForm: {
         username: '',
         password: '',
-        role: 'clerk'
-      },
-      roleForm: {
         role: 'clerk'
       },
       createRules: {
@@ -164,7 +137,7 @@ export default {
   },
   methods: {
     syncCurrentUser() {
-      this.currentUser = JSON.parse(localStorage.getItem('user')) || {}
+      this.currentUser = JSON.parse(sessionStorage.getItem('user')) || {}
     },
     isAdminRole(role) {
       return ['admin', 'ADMIN', '管理员'].includes(role)
@@ -215,39 +188,14 @@ export default {
             this.createDialogVisible = false
             this.getUsers()
           })
-          .catch(() => {
-            this.$message.error('用户创建失败')
+          .catch(error => {
+            const serverMessage = error && error.response && error.response.data && error.response.data.msg
+            this.$message.error(serverMessage || '用户创建失败')
           })
           .finally(() => {
             this.submitting = false
           })
       })
-    },
-    openRoleDialog(user) {
-      this.selectedUser = user || {}
-      this.roleForm = {
-        role: this.isAdminRole(user && user.role) ? 'admin' : 'clerk'
-      }
-      this.roleDialogVisible = true
-    },
-    updateRole() {
-      if (!this.selectedUser.id) return
-
-      this.submitting = true
-      axios.put(`/users/${this.selectedUser.id}`, {
-        role: this.roleForm.role
-      })
-        .then(() => {
-          this.$message.success('角色更新成功')
-          this.roleDialogVisible = false
-          this.getUsers()
-        })
-        .catch(() => {
-          this.$message.error('角色更新失败')
-        })
-        .finally(() => {
-          this.submitting = false
-        })
     },
     formatDate(value) {
       if (!value) return '-'

@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="dashboard-page">
     <el-card shadow="never">
       <div slot="header">
@@ -17,7 +17,7 @@
           <div v-for="item in reminderOrders" :key="item.id" class="dashboard-reminder">
             <span>{{ item.order_number }}</span>
             <span>{{ item.customer_name }}</span>
-            <span v-if="currentUser.role === 'admin'">{{ item.clerk_name || '-' }}</span>
+            <span v-if="isAdmin">{{ item.clerk_name || '-' }}</span>
             <span>剩余 {{ item.settlement_remind_days_left }} 天</span>
           </div>
         </div>
@@ -35,28 +35,30 @@
           <div v-for="item in rejectedOrders" :key="item.id" class="dashboard-reminder dashboard-reminder-rejected">
             <span>{{ item.order_number }}</span>
             <span>{{ item.customer_name }}</span>
-            <span v-if="currentUser.role === 'admin'">{{ item.clerk_name || '-' }}</span>
+            <span v-if="isAdmin">{{ item.clerk_name || '-' }}</span>
             <span>{{ item.reject_reason || '存在驳回原因待处理' }}</span>
           </div>
         </div>
       </el-alert>
 
-      <div v-if="currentUser.role === 'admin'">
-        <p class="dashboard-desc">当前为管理员视图，可以管理用户、商品和全部订单。</p>
+      <div v-if="isAdmin">
+        <p class="dashboard-desc">当前为管理员视图，可管理用户、商品和全部订单。</p>
         <div class="action-list">
           <el-button type="primary" @click="$router.push('/users')">进入用户管理</el-button>
           <el-button @click="$router.push('/orders-management')">进入订单管理</el-button>
           <el-button @click="$router.push('/checkout-review')">进入反结账管理</el-button>
+          <el-button @click="$router.push('/draft-box')">进入草稿箱</el-button>
           <el-button @click="$router.push('/products')">进入商品管理</el-button>
         </div>
       </div>
 
       <div v-else>
-        <p class="dashboard-desc">当前为制单员视图，可以创建订单并查看自己制作的单据。</p>
+        <p class="dashboard-desc">当前为制单员视图，可创建订单并查看自己的单据。</p>
         <div class="action-list">
           <el-button type="primary" @click="$router.push('/orders')">去制单</el-button>
           <el-button @click="$router.push('/orders-management')">查看订单管理</el-button>
           <el-button @click="$router.push('/checkout-review')">查看反结账管理</el-button>
+          <el-button @click="$router.push('/draft-box')">查看草稿箱</el-button>
           <el-button @click="$router.push('/products')">查看商品</el-button>
         </div>
       </div>
@@ -71,21 +73,24 @@ export default {
   name: 'Dashboard',
   data() {
     return {
-      currentUser: JSON.parse(localStorage.getItem('user')) || {},
+      currentUser: JSON.parse(sessionStorage.getItem('user')) || {},
       reminderOrders: [],
       rejectedOrders: []
     }
   },
   computed: {
+    isAdmin() {
+      return ['admin', 'ADMIN', '管理员'].includes(this.currentUser.role)
+    },
     reminderTitle() {
-      return this.currentUser.role === 'admin'
+      return this.isAdmin
         ? `全部未结账提醒：${this.reminderOrders.length} 单`
         : `我的未结账提醒：${this.reminderOrders.length} 单`
     },
     rejectedTitle() {
-      return this.currentUser.role === 'admin'
-        ? `全部已驳回提醒：${this.rejectedOrders.length} 单`
-        : `我的已驳回提醒：${this.rejectedOrders.length} 单`
+      return this.isAdmin
+        ? `全部被驳回单据：${this.rejectedOrders.length} 单`
+        : `我的被驳回单据：${this.rejectedOrders.length} 单`
     }
   },
   mounted() {
@@ -107,7 +112,7 @@ export default {
     getRejectedOrders() {
       axios.get('/orders/review', {
         params: {
-          review_status: '已驳回'
+          review_status: '驳回'
         }
       }).then(res => {
         this.rejectedOrders = res.data || []

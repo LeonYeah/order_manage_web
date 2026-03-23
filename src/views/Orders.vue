@@ -209,7 +209,7 @@ export default {
       saving: false,
       savingDraft: false,
       savingAndPrinting: false,
-      currentUser: JSON.parse(localStorage.getItem('user')) || {}
+      currentUser: JSON.parse(sessionStorage.getItem('user')) || {}
     }
   },
   mounted() {
@@ -576,3 +576,4 @@ export default {
   width: 100%;
 }
 </style>
+
