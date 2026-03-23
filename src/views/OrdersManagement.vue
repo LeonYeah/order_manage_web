@@ -73,6 +73,7 @@
       <el-form-item>
         <el-button type="primary" @click="getOrders">查询</el-button>
         <el-button @click="resetFilters">重置</el-button>
+        <el-button type="success" :loading="exporting" @click="exportOrders">导出Excel</el-button>
       </el-form-item>
     </el-form>
 
@@ -231,6 +232,7 @@ export default {
       showDialog: false,
       currentOrderId: null,
       copying: false,
+      exporting: false,
       currentUser: JSON.parse(sessionStorage.getItem('user')) || {},
       currentPage: 1,
       pageSize: 10,
@@ -446,6 +448,104 @@ export default {
     },
     handlePageChange(page) {
       this.currentPage = page
+    },
+    normalizeCsvCell(value) {
+      const text = value === null || value === undefined ? '' : String(value)
+      const escaped = text.replace(/"/g, '""')
+      return `"${escaped}"`
+    },
+    buildExportCsv() {
+      const headers = [
+        '订单编号',
+        '客户名称',
+        '制单员',
+        '业务员',
+        '下单日期',
+        '结账状态',
+        '结账方式',
+        '总金额(元)',
+        '发货状态',
+        '运单号',
+        '备注'
+      ]
+
+      const rows = this.orders.map(item => ([
+        item.order_number || '',
+        item.customer_name || '',
+        item.order_clerk || item.clerk_name || '',
+        item.salesperson || '',
+        this.formatCompactDate(item.order_date),
+        item.settlement_status || '',
+        item.payment_method || (item.settlement_status === '未结账' ? '未结账' : ''),
+        this.formatAmount(item.total_amount),
+        item.shipping_status || '',
+        item.tracking_number || '',
+        item.remark || ''
+      ]))
+
+      const lines = [headers, ...rows]
+        .map(cols => cols.map(this.normalizeCsvCell).join(','))
+        .join('\r\n')
+      return `\uFEFF${lines}`
+    },
+    async saveCsvWithPicker(content, filename) {
+      if (window.showSaveFilePicker) {
+        const handle = await window.showSaveFilePicker({
+          suggestedName: filename,
+          types: [
+            {
+              description: 'Excel CSV',
+              accept: { 'text/csv': ['.csv'] }
+            }
+          ]
+        })
+        const writable = await handle.createWritable()
+        await writable.write(content)
+        await writable.close()
+        return true
+      }
+      return false
+    },
+    downloadCsv(content, filename) {
+      const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' })
+      const link = document.createElement('a')
+      link.href = URL.createObjectURL(blob)
+      link.download = filename
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(link.href)
+    },
+    async exportOrders() {
+      if (!this.orders.length) {
+        this.$message.warning('当前没有可导出的订单')
+        return
+      }
+      this.exporting = true
+      try {
+        const csv = this.buildExportCsv()
+        const now = new Date()
+        const yyyy = now.getFullYear()
+        const mm = `${now.getMonth() + 1}`.padStart(2, '0')
+        const dd = `${now.getDate()}`.padStart(2, '0')
+        const hh = `${now.getHours()}`.padStart(2, '0')
+        const mi = `${now.getMinutes()}`.padStart(2, '0')
+        const ss = `${now.getSeconds()}`.padStart(2, '0')
+        const filename = `订单导出_${yyyy}${mm}${dd}_${hh}${mi}${ss}.csv`
+
+        let savedByPicker = false
+        try {
+          savedByPicker = await this.saveCsvWithPicker(csv, filename)
+        } catch (error) {
+          savedByPicker = false
+        }
+        if (!savedByPicker) {
+          this.downloadCsv(csv, filename)
+        }
+        this.$message.success('导出成功')
+      } finally {
+        this.exporting = false
+      }
     }
   }
 }
