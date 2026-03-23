@@ -1,7 +1,19 @@
-<template>
-  <div>
-    <el-button v-if="isAdmin" type="primary" @click="addDialog = true">添加商品</el-button>
-    <el-table :data="pagedProducts" style="width:100%" @row-dblclick="handleRowDblClick">
+﻿<template>
+  <div class="products-page">
+    <div class="toolbar" v-if="canManageProducts">
+      <el-button type="primary" @click="openAddDialog">添加商品</el-button>
+      <el-button type="danger" :disabled="!selectedRows.length" :loading="deleting" @click="handleBatchDelete">
+        删除商品
+      </el-button>
+    </div>
+
+    <el-table
+      :data="pagedProducts"
+      style="width: 100%"
+      @row-dblclick="handleRowDblClick"
+      @selection-change="handleSelectionChange"
+    >
+      <el-table-column type="selection" width="55" />
       <el-table-column type="index" label="序号" width="70" :index="productIndexMethod" />
       <el-table-column prop="name" label="商品名称" />
       <el-table-column prop="english_name" label="英文名称" />
@@ -9,6 +21,7 @@
       <el-table-column prop="capacity" label="容量" />
       <el-table-column prop="unit" label="单位" />
     </el-table>
+
     <div class="pagination-wrap">
       <div class="page-tip">第 {{ currentPage }} / {{ totalProductPages }} 页</div>
       <el-pagination
@@ -71,6 +84,8 @@ export default {
       addDialog: false,
       editDialog: false,
       submitting: false,
+      deleting: false,
+      selectedRows: [],
       currentPage: 1,
       pageSize: 10,
       currentUser: JSON.parse(localStorage.getItem('user')) || {},
@@ -82,8 +97,14 @@ export default {
     }
   },
   computed: {
-    isAdmin() {
-      return ['admin', 'ADMIN', '管理员'].includes(this.currentUser.role)
+    normalizedRole() {
+      const role = this.currentUser.role
+      if (['admin', 'ADMIN', '管理员'].includes(role)) return 'admin'
+      if (['clerk', 'CLERK', '制单员'].includes(role)) return 'clerk'
+      return role || ''
+    },
+    canManageProducts() {
+      return ['admin', 'clerk'].includes(this.normalizedRole)
     },
     totalProducts() {
       return this.products.length
@@ -108,7 +129,13 @@ export default {
         this.$message.error('商品列表加载失败')
       })
     },
+    openAddDialog() {
+      if (!this.canManageProducts) return
+      this.form = createEmptyForm()
+      this.addDialog = true
+    },
     addProduct() {
+      if (!this.canManageProducts) return
       if (!this.form.name) {
         this.$message.error('请输入商品名称')
         return
@@ -123,8 +150,37 @@ export default {
         this.$message.error(serverMessage || '商品添加失败')
       })
     },
+    handleSelectionChange(selection) {
+      this.selectedRows = selection || []
+    },
+    handleBatchDelete() {
+      if (!this.canManageProducts) return
+      const ids = this.selectedRows.map(item => item.id).filter(Boolean)
+      if (!ids.length) {
+        this.$message.warning('请先勾选要删除的商品')
+        return
+      }
+
+      this.$confirm(`确认删除选中的 ${ids.length} 个商品吗？`, '提示', { type: 'warning' }).then(() => {
+        this.deleting = true
+        axios.post('/products/batch-delete', { ids })
+          .then(res => {
+            const count = res && res.data && res.data.deleted_count
+            this.$message.success(typeof count === 'number' ? `已删除 ${count} 个商品` : '商品删除成功')
+            this.selectedRows = []
+            this.getProducts()
+          })
+          .catch(error => {
+            const serverMessage = error && error.response && error.response.data && error.response.data.msg
+            this.$message.error(serverMessage || '商品删除失败')
+          })
+          .finally(() => {
+            this.deleting = false
+          })
+      }).catch(() => {})
+    },
     handleRowDblClick(row) {
-      if (!this.isAdmin) return
+      if (!this.canManageProducts) return
       this.editForm = {
         id: row.id,
         name: row.name || '',
@@ -136,7 +192,7 @@ export default {
       this.editDialog = true
     },
     submitEdit() {
-      if (!this.isAdmin) return
+      if (!this.canManageProducts) return
       if (!this.editForm.name) {
         this.$message.error('请输入商品名称')
         return
@@ -165,6 +221,16 @@ export default {
 </script>
 
 <style scoped>
+.products-page {
+  padding: 8px 0;
+}
+
+.toolbar {
+  margin-bottom: 12px;
+  display: flex;
+  gap: 10px;
+}
+
 .pagination-wrap {
   margin-top: 12px;
   display: flex;

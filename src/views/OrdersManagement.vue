@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="orders-management">
     <el-alert
       v-if="reminderOrders.length"
@@ -40,10 +40,13 @@
           clearable
         />
       </el-form-item>
-      <el-form-item v-if="isAdmin" label="业务员">
-        <el-select v-model="filters.clerk_id" placeholder="选择业务员" clearable>
+      <el-form-item v-if="isAdmin" label="制单员">
+        <el-select v-model="filters.clerk_id" placeholder="选择制单员" clearable>
           <el-option v-for="user in users" :key="user.id" :label="user.username" :value="user.id" />
         </el-select>
+      </el-form-item>
+      <el-form-item label="业务员">
+        <el-input v-model.trim="filters.salesperson" placeholder="输入业务员" clearable />
       </el-form-item>
       <el-form-item label="发货状态">
         <el-select v-model="filters.shipping_status" placeholder="全部状态" clearable>
@@ -73,10 +76,22 @@
       </el-form-item>
     </el-form>
 
-    <el-table v-loading="loading" :data="pagedOrders" class="orders-table" style="width: 100%" @row-dblclick="viewOrder">
+    <el-table
+      v-loading="loading"
+      :data="pagedOrders"
+      class="orders-table"
+      style="width: 100%"
+      @row-dblclick="viewOrder"
+      @row-contextmenu="openRowContextMenu"
+    >
       <el-table-column prop="order_number" label="订单编号" min-width="150" />
       <el-table-column prop="customer_name" label="客户名称" min-width="120" />
-      <el-table-column prop="clerk_name" label="业务员" width="100" />
+      <el-table-column prop="order_clerk" label="制单员" width="100">
+        <template slot-scope="scope">
+          {{ scope.row.order_clerk || scope.row.clerk_name || '-' }}
+        </template>
+      </el-table-column>
+      <el-table-column prop="salesperson" label="业务员" width="100" />
       <el-table-column label="下单日期" width="96">
         <template slot-scope="scope">
           {{ formatCompactDate(scope.row.order_date) }}
@@ -97,12 +112,12 @@
           {{ scope.row.payment_method || (scope.row.settlement_status === '未结账' ? '未结账' : '-') }}
         </template>
       </el-table-column>
-      <el-table-column prop="total_amount" label="总金额(元)" width="90">
+      <el-table-column prop="total_amount" label="总金额(元)" width="100">
         <template slot-scope="scope">
           {{ formatAmount(scope.row.total_amount) }}
         </template>
       </el-table-column>
-      <el-table-column label="发货状态" width="170">
+      <el-table-column label="发货状态" width="180" class-name="shipping-col">
         <template slot-scope="scope">
           <el-switch
             :value="scope.row.shipping_status === '已发货'"
@@ -131,7 +146,7 @@
           />
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="120" fixed="right">
+      <el-table-column label="操作" width="180" fixed="right">
         <template slot-scope="scope">
           <el-button
             type="primary"
@@ -139,11 +154,21 @@
             :loading="scope.row.updating"
             @click="updateShipping(scope.row)"
           >
-            上传修改
+            提交
+          </el-button>
+          <el-button
+            size="mini"
+            type="danger"
+            :disabled="scope.row.shipping_status === '已发货'"
+            :loading="scope.row.deleting"
+            @click="deleteOrder(scope.row)"
+          >
+            删除
           </el-button>
         </template>
       </el-table-column>
     </el-table>
+
     <div class="pagination-wrap">
       <div class="page-tip">第 {{ currentPage }} / {{ totalOrderPages }} 页</div>
       <el-pagination
@@ -156,9 +181,23 @@
       />
     </div>
 
-    <el-dialog title="订单详情" :visible.sync="showDialog" width="80%">
+    <div class="summary-bar">
+      <span>总计订单数：{{ summaryTotal }}</span>
+      <span>已付款订单数：{{ summaryPaidCount }}/{{ summaryTotal }}</span>
+      <span>已付款总金额：{{ formatAmount(summaryPaidAmount) }}元</span>
+    </div>
+
+    <el-dialog title="订单详情" :visible.sync="showDialog" width="80%" @close="getOrders">
       <orders-view :order-id="currentOrderId" />
     </el-dialog>
+
+    <div
+      v-if="contextMenu.visible"
+      class="context-menu"
+      :style="{ left: contextMenu.x + 'px', top: contextMenu.y + 'px' }"
+    >
+      <div class="context-menu-item" @click="copyOrderByContext">复制订单</div>
+    </div>
   </div>
 </template>
 
@@ -172,6 +211,7 @@ function createDefaultFilters() {
     start_date: '',
     end_date: '',
     clerk_id: null,
+    salesperson: '',
     shipping_status: '',
     settlement_status: '',
     payment_method: '',
@@ -190,9 +230,16 @@ export default {
       loading: false,
       showDialog: false,
       currentOrderId: null,
+      copying: false,
       currentUser: JSON.parse(localStorage.getItem('user')) || {},
       currentPage: 1,
-      pageSize: 10
+      pageSize: 10,
+      contextMenu: {
+        visible: false,
+        x: 0,
+        y: 0,
+        row: null
+      }
     }
   },
   computed: {
@@ -212,14 +259,29 @@ export default {
     pagedOrders() {
       const start = (this.currentPage - 1) * this.pageSize
       return this.orders.slice(start, start + this.pageSize)
+    },
+    summaryTotal() {
+      return this.orders.length
+    },
+    summaryPaidCount() {
+      return this.orders.filter(item => item.settlement_status === '已结账').length
+    },
+    summaryPaidAmount() {
+      return this.orders
+        .filter(item => item.settlement_status === '已结账')
+        .reduce((sum, item) => sum + Number(item.total_amount || 0), 0)
     }
   },
   mounted() {
+    document.addEventListener('click', this.closeContextMenu)
     if (this.isAdmin) {
       this.getUsers()
     }
     this.getOrders()
     this.getReminderOrders()
+  },
+  beforeDestroy() {
+    document.removeEventListener('click', this.closeContextMenu)
   },
   methods: {
     formatAmount(value) {
@@ -249,7 +311,7 @@ export default {
           this.users = res.data || []
         })
         .catch(() => {
-          this.$message.error('业务员数据加载失败')
+          this.$message.error('制单员数据加载失败')
         })
     },
     buildParams(sourceFilters) {
@@ -267,7 +329,8 @@ export default {
         tracking_number: item.tracking_number || '',
         payment_method: item.payment_method || '',
         remark: item.remark || '',
-        updating: false
+        updating: false,
+        deleting: false
       }))
     },
     getOrders() {
@@ -303,7 +366,6 @@ export default {
       row.shipping_status = value ? '已发货' : '未发货'
       if (!value) {
         row.tracking_number = ''
-        // 切换为未发货时自动同步到后端
         this.updateShipping(row)
       }
     },
@@ -324,6 +386,59 @@ export default {
       }).finally(() => {
         row.updating = false
       })
+    },
+    deleteOrder(row) {
+      if (row.shipping_status === '已发货') return
+      this.$confirm(`确认删除订单 ${row.order_number} 吗？`, '提示', { type: 'warning' }).then(() => {
+        row.deleting = true
+        axios.delete(`/orders/${row.id}`)
+          .then(() => {
+            this.$message.success('订单已删除')
+            this.getOrders()
+            this.getReminderOrders()
+          })
+          .catch(error => {
+            const serverMessage = error && error.response && error.response.data && error.response.data.msg
+            this.$message.error(serverMessage || '删除订单失败')
+          })
+          .finally(() => {
+            row.deleting = false
+          })
+      }).catch(() => {})
+    },
+    openRowContextMenu(row, column, event) {
+      event.preventDefault()
+      this.contextMenu = {
+        visible: true,
+        x: event.clientX,
+        y: event.clientY,
+        row
+      }
+    },
+    closeContextMenu() {
+      if (!this.contextMenu.visible) return
+      this.contextMenu.visible = false
+      this.contextMenu.row = null
+    },
+    copyOrderByContext() {
+      const row = this.contextMenu.row
+      this.closeContextMenu()
+      if (!row || this.copying) return
+      this.copying = true
+      axios.post(`/orders/${row.id}/copy`)
+        .then(res => {
+          const orderNumber = res && res.data && res.data.order_number
+          this.$message.success(orderNumber ? `复制成功：${orderNumber}` : '复制成功')
+          this.getOrders()
+          this.getReminderOrders()
+        })
+        .catch(error => {
+          const serverMessage = error && error.response && error.response.data && error.response.data.msg
+          this.$message.error(serverMessage || '复制订单失败')
+        })
+        .finally(() => {
+          this.copying = false
+        })
     },
     viewOrder(row) {
       this.currentOrderId = row.id
@@ -391,11 +506,47 @@ export default {
   font-size: 13px;
   color: #606266;
 }
+
+.summary-bar {
+  margin-top: 14px;
+  display: flex;
+  gap: 18px;
+  font-size: 15px;
+  font-weight: 700;
+  color: #f56c6c;
+}
+
+.context-menu {
+  position: fixed;
+  z-index: 3000;
+  min-width: 112px;
+  background: #fff;
+  border: 1px solid #dcdfe6;
+  border-radius: 4px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+}
+
+.context-menu-item {
+  padding: 8px 12px;
+  font-size: 13px;
+  color: #303133;
+  cursor: pointer;
+}
+
+.context-menu-item:hover {
+  background: #ecf5ff;
+  color: #409eff;
+}
 </style>
 
 <style>
 .orders-management .el-switch__label {
   font-size: 12px;
+  white-space: nowrap;
+}
+
+.orders-management .shipping-col .cell {
   white-space: nowrap;
 }
 </style>

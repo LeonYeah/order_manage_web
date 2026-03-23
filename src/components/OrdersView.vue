@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="orders-view">
     <div v-if="order">
       <div class="order-header">
@@ -8,6 +8,14 @@
           <div class="meta-item">
             客户名称：
             <el-input v-model.trim="order.customer_name" size="small" style="width: 150px" />
+          </div>
+          <div class="meta-item">
+            收件人：
+            <el-input v-model.trim="order.recipient_name" size="small" style="width: 120px" />
+          </div>
+          <div class="meta-item">
+            收件地址：
+            <el-input v-model.trim="order.recipient_address" size="small" style="width: 220px" />
           </div>
           <div class="meta-item order-date-item">
             下单日期：
@@ -21,7 +29,13 @@
               placeholder="选择日期"
             />
           </div>
-          <div class="meta-item">业务员：{{ order.clerk_name || '-' }}</div>
+          <div class="meta-item">
+            制单员：{{ order.order_clerk || order.clerk_name || '-' }}
+          </div>
+          <div class="meta-item">
+            业务员：
+            <el-input v-model.trim="order.salesperson" size="small" style="width: 120px" placeholder="可选" />
+          </div>
           <div class="meta-item">
             结账状态：
             <el-select
@@ -42,9 +56,6 @@
               <el-option label="现金" value="现金" />
             </el-select>
           </div>
-          <div v-else class="meta-item settlement-hint">
-            未结账订单会提醒管理员和对应制单员 3 天
-          </div>
         </div>
       </div>
 
@@ -60,6 +71,11 @@
         <el-table-column prop="product_code" label="商品编号" min-width="96" />
         <el-table-column prop="english_name" label="英文名称" min-width="108" />
         <el-table-column prop="capacity" label="容量" width="80" />
+        <el-table-column label="颜色" width="100">
+          <template slot-scope="scope">
+            <el-input v-model.trim="scope.row.color" size="small" placeholder="颜色" />
+          </template>
+        </el-table-column>
         <el-table-column label="数量" width="118">
           <template slot-scope="scope">
             <el-input-number
@@ -122,7 +138,7 @@
       </el-table>
 
       <div class="detail-actions">
-        <el-button size="small" @click="addItem">添加商品</el-button>
+        <el-button size="small" @click="addItem">增加商品</el-button>
       </div>
 
       <div class="order-footer">
@@ -177,6 +193,7 @@ function createEmptyItem() {
     product_code: '',
     english_name: '',
     capacity: '',
+    color: '',
     quantity: 1,
     unit_price: 0,
     amount: 0,
@@ -224,6 +241,10 @@ export default {
       const day = `${date.getDate()}`.padStart(2, '0')
       return `${year}-${month}-${day}`
     },
+    compactDate(value) {
+      const date = this.normalizeDate(value)
+      return date ? date.replace(/-/g, '') : ''
+    },
     getProducts() {
       axios.get('/products')
         .then(res => {
@@ -242,6 +263,7 @@ export default {
             product_code: item.product_code,
             english_name: item.english_name,
             capacity: item.capacity,
+            color: item.color || '',
             quantity: Number(item.quantity || 0),
             unit_price: Number(item.unit_price || 0),
             amount: Number(item.amount || 0),
@@ -257,6 +279,9 @@ export default {
             shipping_fee: Number(res.data.shipping_fee || 0),
             discount_amount: Number(res.data.discount_amount || 0),
             total_amount: Number(res.data.total_amount || 0),
+            recipient_name: res.data.recipient_name || res.data.customer_name || '',
+            recipient_address: res.data.recipient_address || '',
+            salesperson: res.data.salesperson || '',
             remark: res.data.remark || ''
           }
           this.items = items
@@ -316,7 +341,7 @@ export default {
       }
       const invalidItem = this.items.find(item => !item.product_id || Number(item.quantity || 0) <= 0)
       if (invalidItem) {
-        this.$message.error('请完善商品、数量等必填信息')
+        this.$message.error('请完善商品和数量等必填信息')
         return false
       }
       if (this.order.settlement_status === '已结账' && !this.order.payment_method) {
@@ -329,6 +354,9 @@ export default {
       this.updateTotal()
       return {
         customer_name: this.order.customer_name,
+        recipient_name: this.order.recipient_name || this.order.customer_name,
+        recipient_address: this.order.recipient_address || '',
+        salesperson: this.order.salesperson || '',
         order_date: this.normalizeDate(this.order.order_date),
         shipping_status: this.order.shipping_status || '未发货',
         tracking_number: this.order.tracking_number || '',
@@ -343,6 +371,7 @@ export default {
           quantity: Number(item.quantity || 0),
           unit_price: Number(item.unit_price || 0),
           amount: Number(item.amount || 0),
+          color: item.color || '',
           sample_date: this.normalizeDate(item.sample_date) || null,
           remark: item.remark || ''
         }))
@@ -377,11 +406,6 @@ export default {
       const text = value === null || value === undefined ? '' : String(value).trim()
       return this.escapeHtml(text || '/')
     },
-    printAmount(value) {
-      const num = Number(value)
-      if (Number.isNaN(num)) return '/'
-      return `${num.toFixed(2)}元`
-    },
     getProductName(item) {
       if (item && item.product_name) return item.product_name
       const product = this.products.find(p => p.id === (item && item.product_id))
@@ -395,8 +419,9 @@ export default {
           <td>${this.printCell(item.product_code)}</td>
           <td>${this.printCell(item.english_name)}</td>
           <td>${this.printCell(item.capacity)}</td>
+          <td>${this.printCell(item.color)}</td>
           <td>${this.printCell(item.quantity)}</td>
-          <td>${this.printCell(item.sample_date)}</td>
+          <td>${this.printCell(this.compactDate(item.sample_date))}</td>
           <td>${this.printCell(item.remark)}</td>
         </tr>
       `).join('')
@@ -406,7 +431,9 @@ export default {
           <div class="title">商品定制工业单</div>
           <div class="meta">
             <div>订单编号：${this.printCell(this.order.order_number)}</div>
-            <div>下单日期：${this.printCell((this.order.order_date || '').replace(/-/g, ''))}</div>
+            <div>下单日期：${this.printCell(this.compactDate(this.order.order_date))}</div>
+            <div>收件人：${this.printCell(this.order.recipient_name || this.order.customer_name)}</div>
+            <div>订单备注：${this.printCell(this.order.remark)}</div>
           </div>
           <table>
             <thead>
@@ -415,13 +442,14 @@ export default {
                 <th style="width:12%">商品名称</th>
                 <th style="width:10%">商品编号</th>
                 <th style="width:12%">英文名称</th>
-                <th style="width:10%">容量</th>
-                <th style="width:10%">数量</th>
+                <th style="width:9%">容量</th>
+                <th style="width:9%">颜色</th>
+                <th style="width:8%">数量</th>
                 <th style="width:14%">来样日期</th>
-                <th style="width:28%">备注</th>
+                <th style="width:22%">备注</th>
               </tr>
             </thead>
-            <tbody>${rows || '<tr><td colspan="8">/</td></tr>'}</tbody>
+            <tbody>${rows || '<tr><td colspan="9">/</td></tr>'}</tbody>
           </table>
         </section>
       `
@@ -443,7 +471,6 @@ export default {
             table { width: 100%; border-collapse: collapse; table-layout: fixed; }
             th, td { border: 1px solid #333; padding: 2px 2px; font-size: 9px; text-align: center; word-break: break-all; line-height: 1.2; }
             thead th { background: #f3f3f3; font-weight: 600; }
-            .summary { margin-top: 4px; display: flex; gap: 10px; font-size: 10px; flex-wrap: wrap; }
           </style>
         </head>
         <body>
@@ -496,10 +523,6 @@ export default {
 
 .order-date-picker {
   width: 110px;
-}
-
-.settlement-hint {
-  color: #e6a23c;
 }
 
 .detail-table {

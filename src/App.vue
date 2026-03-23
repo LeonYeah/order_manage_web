@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <router-view v-if="isLoginPage" />
   <el-container v-else class="app-shell">
     <el-aside width="220px" class="app-aside">
@@ -13,6 +13,7 @@
           <el-button type="text" class="logout-button" @click="logout">退出登录</el-button>
         </div>
       </div>
+
       <el-menu :default-active="$route.path" class="el-menu-vertical-demo">
         <el-menu-item index="/dashboard" @click="$router.push('/dashboard')">首页</el-menu-item>
         <el-menu-item v-if="['admin', 'clerk'].includes(user.role)" index="/orders" @click="$router.push('/orders')">制单</el-menu-item>
@@ -20,8 +21,10 @@
         <el-menu-item index="/products" @click="$router.push('/products')">商品管理</el-menu-item>
         <el-menu-item v-if="['admin', 'clerk'].includes(user.role)" index="/orders-management" @click="$router.push('/orders-management')">订单管理</el-menu-item>
         <el-menu-item v-if="['admin', 'clerk'].includes(user.role)" index="/checkout-review" @click="$router.push('/checkout-review')">反结账管理</el-menu-item>
+        <el-menu-item v-if="['admin', 'clerk'].includes(user.role)" index="/draft-box" @click="$router.push('/draft-box')">草稿箱</el-menu-item>
       </el-menu>
     </el-aside>
+
     <el-container>
       <el-main>
         <router-view />

@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="order-page">
     <div class="order-header">
       <h2>商品定制工业单</h2>
@@ -7,6 +7,14 @@
         <div class="meta-item">
           客户名称：
           <el-input v-model.trim="order.customer_name" style="width: 150px" />
+        </div>
+        <div class="meta-item">
+          收件人：
+          <el-input v-model.trim="order.recipient_name" style="width: 120px" />
+        </div>
+        <div class="meta-item">
+          收件地址：
+          <el-input v-model.trim="order.recipient_address" style="width: 220px" />
         </div>
         <div class="meta-item order-date-item">
           下单日期：
@@ -19,6 +27,10 @@
             placeholder="选择日期"
             @change="refreshOrderNumber"
           />
+        </div>
+        <div class="meta-item">
+          业务员：
+          <el-input v-model.trim="order.salesperson" style="width: 120px" placeholder="可选" />
         </div>
         <div class="meta-item">
           结账状态：
@@ -40,12 +52,11 @@
             <el-option label="现金" value="现金" />
           </el-select>
         </div>
-        <div v-else class="meta-item settlement-hint">未结账订单会提醒管理员和对应制单员 3 天</div>
       </div>
     </div>
 
     <el-table :data="order.items" class="order-table" style="width: 100%" border>
-      <el-table-column label="序号" type="index" width="48" />
+      <el-table-column label="序号" type="index" width="50" />
       <el-table-column prop="product_id" label="商品名称" min-width="160">
         <template slot-scope="scope">
           <el-select v-model="scope.row.product_id" class="full-width" placeholder="选择商品" @change="updateProduct(scope.row)">
@@ -53,9 +64,14 @@
           </el-select>
         </template>
       </el-table-column>
-      <el-table-column prop="product_code" label="商品编号" min-width="96" />
-      <el-table-column prop="english_name" label="英文名称" min-width="118" />
+      <el-table-column prop="product_code" label="商品编号" min-width="90" />
+      <el-table-column prop="english_name" label="英文名称" min-width="100" />
       <el-table-column prop="capacity" label="容量" width="86" />
+      <el-table-column prop="color" label="颜色" width="100">
+        <template slot-scope="scope">
+          <el-input v-model.trim="scope.row.color" size="small" placeholder="颜色" />
+        </template>
+      </el-table-column>
       <el-table-column prop="quantity" label="数量" width="118">
         <template slot-scope="scope">
           <el-input-number v-model="scope.row.quantity" size="mini" :min="1" @change="updateAmountFromUnitPrice(scope.row)" />
@@ -99,7 +115,7 @@
           />
         </template>
       </el-table-column>
-      <el-table-column prop="remark" label="备注" min-width="160">
+      <el-table-column prop="remark" label="备注" min-width="150">
         <template slot-scope="scope">
           <el-input v-model.trim="scope.row.remark" placeholder="备注" size="small" />
         </template>
@@ -111,7 +127,7 @@
       </el-table-column>
     </el-table>
 
-    <el-button type="primary" @click="addItem" style="margin: 10px 0">添加商品</el-button>
+    <el-button type="primary" @click="addItem" style="margin: 10px 0">增加商品</el-button>
 
     <div class="order-footer">
       <div class="footer-item no-wrap">
@@ -146,8 +162,9 @@
     </div>
 
     <div class="order-actions">
-      <el-button type="primary" :loading="saving" @click="saveOrder">保存订单</el-button>
-      <el-button type="success" :loading="savingAndPrinting" @click="saveAndPrint">保存并打印</el-button>
+      <el-button type="primary" :loading="saving" @click="saveOrder">提交订单</el-button>
+      <el-button :loading="savingDraft" @click="saveDraft">保存草稿</el-button>
+      <el-button type="success" :loading="savingAndPrinting" @click="saveAndPrint">提交并打印</el-button>
     </div>
   </div>
 </template>
@@ -161,6 +178,7 @@ function createEmptyItem() {
     product_code: '',
     english_name: '',
     capacity: '',
+    color: '',
     quantity: 1,
     unit_price: 0,
     amount: 0,
@@ -174,6 +192,9 @@ export default {
     return {
       order: {
         customer_name: '',
+        recipient_name: '',
+        recipient_address: '',
+        salesperson: '',
         order_number: '',
         order_date: '',
         shipping_fee: 0,
@@ -186,6 +207,7 @@ export default {
       },
       products: [],
       saving: false,
+      savingDraft: false,
       savingAndPrinting: false,
       currentUser: JSON.parse(localStorage.getItem('user')) || {}
     }
@@ -200,20 +222,25 @@ export default {
     formatDate(value) {
       if (!value) return ''
       const date = value instanceof Date ? value : new Date(value)
+      if (Number.isNaN(date.getTime())) return ''
       const year = date.getFullYear()
       const month = `${date.getMonth() + 1}`.padStart(2, '0')
       const day = `${date.getDate()}`.padStart(2, '0')
       return `${year}-${month}-${day}`
     },
+    compactDate(value) {
+      const text = this.formatDate(value)
+      return text ? text.replace(/-/g, '') : ''
+    },
     getProducts() {
       axios.get('/products').then(res => {
-        this.products = res.data
+        this.products = res.data || []
       }).catch(() => {
         this.$message.error('商品数据加载失败')
       })
     },
     getFallbackOrderNumber() {
-      const compactDate = this.formatDate(this.order.order_date).replace(/-/g, '')
+      const compactDate = this.compactDate(this.order.order_date)
       return compactDate ? `${compactDate}0001` : ''
     },
     refreshOrderNumber() {
@@ -224,13 +251,8 @@ export default {
         params: { date: orderDate }
       }).then(res => {
         this.order.order_number = res.data.order_number || ''
-      }).catch(error => {
+      }).catch(() => {
         this.order.order_number = this.getFallbackOrderNumber()
-        if (error && error.response && error.response.status === 404) {
-          this.$message.warning('订单编号接口未就绪，已使用本地预览编号')
-          return
-        }
-        this.$message.warning('订单编号获取失败，已使用本地预览编号')
       })
     },
     addItem() {
@@ -282,7 +304,7 @@ export default {
 
       const invalidItem = this.order.items.find(item => !item.product_id || Number(item.quantity || 0) <= 0)
       if (invalidItem) {
-        this.$message.error('请完善商品、数量等必填信息')
+        this.$message.error('请完善商品和数量等必填信息')
         return false
       }
 
@@ -298,6 +320,9 @@ export default {
 
       return {
         customer_name: this.order.customer_name,
+        recipient_name: this.order.recipient_name || this.order.customer_name,
+        recipient_address: this.order.recipient_address || '',
+        salesperson: this.order.salesperson || '',
         clerk_id: this.currentUser.id,
         order_date: this.formatDate(this.order.order_date),
         shipping_fee: Number(this.order.shipping_fee || 0),
@@ -311,6 +336,7 @@ export default {
           quantity: Number(item.quantity || 0),
           unit_price: Number(item.unit_price || 0),
           amount: Number(item.amount || 0),
+          color: item.color || '',
           sample_date: item.sample_date || null,
           remark: item.remark || ''
         }))
@@ -322,38 +348,49 @@ export default {
       return axios.post('/orders', this.buildPayload())
         .then(response => {
           this.order.order_number = response.data.order_number || this.order.order_number
-          this.$message.success('订单已保存')
+          this.$message.success('订单已提交')
           return response.data
         })
         .catch(error => {
           const serverMessage = error && error.response && error.response.data && error.response.data.msg
-          this.$message.error(serverMessage || '订单保存失败')
+          this.$message.error(serverMessage || '订单提交失败')
           return null
         })
     },
     saveOrder() {
       this.saving = true
-      this.submitOrder()
-        .then(saved => {
-          if (saved) {
-            this.refreshOrderNumber()
-          }
+      this.submitOrder().then(saved => {
+        if (saved) {
+          this.refreshOrderNumber()
+        }
+      }).finally(() => {
+        this.saving = false
+      })
+    },
+    saveDraft() {
+      if (!this.validateOrder()) return
+      this.savingDraft = true
+      axios.post('/order-drafts', this.buildPayload())
+        .then(() => {
+          this.$message.success('草稿已保存')
+        })
+        .catch(error => {
+          const serverMessage = error && error.response && error.response.data && error.response.data.msg
+          this.$message.error(serverMessage || '保存草稿失败')
         })
         .finally(() => {
-          this.saving = false
+          this.savingDraft = false
         })
     },
     saveAndPrint() {
       this.savingAndPrinting = true
-      this.submitOrder()
-        .then(saved => {
-          if (!saved) return
-          this.printOrder()
-          this.refreshOrderNumber()
-        })
-        .finally(() => {
-          this.savingAndPrinting = false
-        })
+      this.submitOrder().then(saved => {
+        if (!saved) return
+        this.printOrder()
+        this.refreshOrderNumber()
+      }).finally(() => {
+        this.savingAndPrinting = false
+      })
     },
     escapeHtml(value) {
       return String(value)
@@ -367,11 +404,6 @@ export default {
       const text = value === null || value === undefined ? '' : String(value).trim()
       return this.escapeHtml(text || '/')
     },
-    printAmount(value) {
-      const num = Number(value)
-      if (Number.isNaN(num)) return '/'
-      return `${num.toFixed(2)}元`
-    },
     getProductNameById(productId) {
       const product = this.products.find(item => item.id === productId)
       return (product && product.name) || ''
@@ -384,8 +416,9 @@ export default {
           <td>${this.printCell(item.product_code)}</td>
           <td>${this.printCell(item.english_name)}</td>
           <td>${this.printCell(item.capacity)}</td>
+          <td>${this.printCell(item.color)}</td>
           <td>${this.printCell(item.quantity)}</td>
-          <td>${this.printCell(item.sample_date)}</td>
+          <td>${this.printCell(this.compactDate(item.sample_date))}</td>
           <td>${this.printCell(item.remark)}</td>
         </tr>
       `).join('')
@@ -395,7 +428,9 @@ export default {
           <div class="title">商品定制工业单</div>
           <div class="meta">
             <div>订单编号：${this.printCell(this.order.order_number)}</div>
-            <div>下单日期：${this.printCell((this.order.order_date || '').replace(/-/g, ''))}</div>
+            <div>下单日期：${this.printCell(this.compactDate(this.order.order_date))}</div>
+            <div>收件人：${this.printCell(this.order.recipient_name || this.order.customer_name)}</div>
+            <div>订单备注：${this.printCell(this.order.remark)}</div>
           </div>
           <table>
             <thead>
@@ -404,13 +439,14 @@ export default {
                 <th style="width:12%">商品名称</th>
                 <th style="width:10%">商品编号</th>
                 <th style="width:12%">英文名称</th>
-                <th style="width:10%">容量</th>
-                <th style="width:10%">数量</th>
+                <th style="width:9%">容量</th>
+                <th style="width:9%">颜色</th>
+                <th style="width:8%">数量</th>
                 <th style="width:14%">来样日期</th>
-                <th style="width:28%">备注</th>
+                <th style="width:22%">备注</th>
               </tr>
             </thead>
-            <tbody>${rows || '<tr><td colspan="8">/</td></tr>'}</tbody>
+            <tbody>${rows || '<tr><td colspan="9">/</td></tr>'}</tbody>
           </table>
         </section>
       `
@@ -432,7 +468,6 @@ export default {
             table { width: 100%; border-collapse: collapse; table-layout: fixed; }
             th, td { border: 1px solid #333; padding: 2px 2px; font-size: 9px; text-align: center; word-break: break-all; line-height: 1.2; }
             thead th { background: #f3f3f3; font-weight: 600; }
-            .summary { margin-top: 4px; display: flex; gap: 10px; font-size: 10px; flex-wrap: wrap; }
           </style>
         </head>
         <body>
@@ -485,10 +520,6 @@ export default {
 
 .order-date-picker {
   width: 110px;
-}
-
-.settlement-hint {
-  color: #e6a23c;
 }
 
 .order-footer {
