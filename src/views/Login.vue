@@ -42,7 +42,21 @@ export default {
         role: payload.role || (response && response.role) || ''
       }
     },
+    isTrialExpired() {
+      const now = new Date()
+      const expiryTime = new Date(2026, 3, 7, 0, 0, 0, 0)
+
+      return now >= expiryTime
+    },
     login() {
+      if (this.isTrialExpired()) {
+        this.$alert('软件试用期已过期，请联系制作方', '提示', {
+          confirmButtonText: '确定',
+          type: 'warning'
+        })
+        return
+      }
+
       axios.post('/login', { username: this.username, password: this.password })
         .then(res => {
           sessionStorage.setItem('token', res.data.token)
