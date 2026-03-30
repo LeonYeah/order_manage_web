@@ -57,13 +57,23 @@ export default {
     }
   },
   methods: {
+    getSessionUser() {
+      const raw = sessionStorage.getItem('user')
+      if (!raw) return {}
+      try {
+        return JSON.parse(raw) || {}
+      } catch (error) {
+        sessionStorage.removeItem('user')
+        return {}
+      }
+    },
     normalizeRole(role) {
       if (['admin', 'ADMIN', '管理员'].includes(role)) return 'admin'
       if (['clerk', 'CLERK', '制单员'].includes(role)) return 'clerk'
       return role || ''
     },
     syncUser() {
-      const user = JSON.parse(sessionStorage.getItem('user')) || {}
+      const user = this.getSessionUser()
       this.user = {
         ...user,
         role: this.normalizeRole(user.role)

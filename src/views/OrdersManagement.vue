@@ -488,23 +488,25 @@ export default {
         .join('\r\n')
       return `\uFEFF${lines}`
     },
-    async saveCsvWithPicker(content, filename) {
-      if (window.showSaveFilePicker) {
-        const handle = await window.showSaveFilePicker({
-          suggestedName: filename,
-          types: [
-            {
-              description: 'Excel CSV',
-              accept: { 'text/csv': ['.csv'] }
-            }
-          ]
-        })
-        const writable = await handle.createWritable()
-        await writable.write(content)
-        await writable.close()
-        return true
-      }
-      return false
+    saveCsvWithPicker(content, filename) {
+      if (!window.showSaveFilePicker) return Promise.resolve(false)
+
+      return window.showSaveFilePicker({
+        suggestedName: filename,
+        types: [
+          {
+            description: 'Excel CSV',
+            accept: { 'text/csv': ['.csv'] }
+          }
+        ]
+      }).then(handle => {
+        return handle.createWritable()
+          .then(writable => {
+            return writable.write(content)
+              .then(() => writable.close())
+              .then(() => true)
+          })
+      })
     },
     downloadCsv(content, filename) {
       const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' })
@@ -516,36 +518,37 @@ export default {
       document.body.removeChild(link)
       URL.revokeObjectURL(link.href)
     },
-    async exportOrders() {
+    exportOrders() {
       if (!this.orders.length) {
         this.$message.warning('当前没有可导出的订单')
         return
       }
       this.exporting = true
-      try {
-        const csv = this.buildExportCsv()
-        const now = new Date()
-        const yyyy = now.getFullYear()
-        const mm = `${now.getMonth() + 1}`.padStart(2, '0')
-        const dd = `${now.getDate()}`.padStart(2, '0')
-        const hh = `${now.getHours()}`.padStart(2, '0')
-        const mi = `${now.getMinutes()}`.padStart(2, '0')
-        const ss = `${now.getSeconds()}`.padStart(2, '0')
-        const filename = `订单导出_${yyyy}${mm}${dd}_${hh}${mi}${ss}.csv`
 
-        let savedByPicker = false
-        try {
-          savedByPicker = await this.saveCsvWithPicker(csv, filename)
-        } catch (error) {
-          savedByPicker = false
-        }
-        if (!savedByPicker) {
+      const csv = this.buildExportCsv()
+      const now = new Date()
+      const yyyy = now.getFullYear()
+      const mm = `${now.getMonth() + 1}`.padStart(2, '0')
+      const dd = `${now.getDate()}`.padStart(2, '0')
+      const hh = `${now.getHours()}`.padStart(2, '0')
+      const mi = `${now.getMinutes()}`.padStart(2, '0')
+      const ss = `${now.getSeconds()}`.padStart(2, '0')
+      const filename = `订单导出_${yyyy}${mm}${dd}_${hh}${mi}${ss}.csv`
+
+      this.saveCsvWithPicker(csv, filename)
+        .then(savedByPicker => {
+          if (!savedByPicker) {
+            this.downloadCsv(csv, filename)
+          }
+          this.$message.success('导出成功')
+        })
+        .catch(() => {
           this.downloadCsv(csv, filename)
-        }
-        this.$message.success('导出成功')
-      } finally {
-        this.exporting = false
-      }
+          this.$message.success('导出成功')
+        })
+        .finally(() => {
+          this.exporting = false
+        })
     }
   }
 }

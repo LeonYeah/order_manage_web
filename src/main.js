@@ -15,6 +15,17 @@ axios.interceptors.request.use(config => {
   return config
 })
 
+function getSessionUser() {
+  const raw = sessionStorage.getItem('user')
+  if (!raw) return null
+  try {
+    return JSON.parse(raw)
+  } catch (error) {
+    sessionStorage.removeItem('user')
+    return null
+  }
+}
+
 function normalizeRole(role) {
   if (['admin', 'ADMIN', '管理员'].includes(role)) return 'admin'
   if (['clerk', 'CLERK', '制单员'].includes(role)) return 'clerk'
@@ -23,7 +34,7 @@ function normalizeRole(role) {
 
 // Route guard for auth and role checks.
 router.beforeEach((to, from, next) => {
-  const user = JSON.parse(sessionStorage.getItem('user'))
+  const user = getSessionUser()
   if (user && user.role) {
     user.role = normalizeRole(user.role)
   }

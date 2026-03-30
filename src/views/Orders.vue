@@ -430,7 +430,7 @@ export default {
             <div>订单编号：${this.printCell(this.order.order_number)}</div>
             <div>下单日期：${this.printCell(this.compactDate(this.order.order_date))}</div>
             <div>收件人：${this.printCell(this.order.recipient_name || this.order.customer_name)}</div>
-            <div>订单备注：${this.printCell(this.order.remark)}</div>
+            <div>收货地址：${this.printCell(this.order.recipient_address)}</div>
           </div>
           <table>
             <thead>
