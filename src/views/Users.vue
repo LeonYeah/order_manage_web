@@ -9,6 +9,7 @@
         <div class="header-actions" v-if="isAdmin">
           <el-button @click="getUsers">刷新</el-button>
           <el-button type="primary" @click="openCreateDialog">新增用户</el-button>
+          <el-button type="warning" @click="openPasswordDialog">修改密码</el-button>
         </div>
       </div>
 
@@ -77,6 +78,31 @@
         <el-button type="primary" :loading="submitting" @click="createUser">确定</el-button>
       </div>
     </el-dialog>
+
+    <el-dialog title="修改密码" :visible.sync="passwordDialogVisible" width="460px">
+      <el-form ref="passwordForm" :model="passwordForm" :rules="passwordRules" label-width="110px">
+        <el-form-item label="选择用户" prop="userId">
+          <el-select v-model="passwordForm.userId" filterable placeholder="请选择用户" style="width: 100%">
+            <el-option
+              v-for="item in users"
+              :key="item.id"
+              :label="item.username"
+              :value="item.id"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="新的登录密码" prop="password">
+          <el-input v-model="passwordForm.password" type="password" show-password maxlength="30" />
+        </el-form-item>
+        <el-form-item label="再次输入密码" prop="confirmPassword">
+          <el-input v-model="passwordForm.confirmPassword" type="password" show-password maxlength="30" />
+        </el-form-item>
+      </el-form>
+      <div slot="footer">
+        <el-button @click="passwordDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="passwordSubmitting" @click="changePassword">确定</el-button>
+      </div>
+    </el-dialog>
   </div>
 </template>
 
@@ -86,16 +112,37 @@ import axios from 'axios'
 export default {
   name: 'Users',
   data() {
+    const validateConfirmPassword = (rule, value, callback) => {
+      if (!value) {
+        callback(new Error('请再次输入密码'))
+        return
+      }
+
+      if (value !== this.passwordForm.password) {
+        callback(new Error('两次输入的密码不一致'))
+        return
+      }
+
+      callback()
+    }
+
     return {
       loading: false,
       submitting: false,
+      passwordSubmitting: false,
       users: [],
       currentUser: {},
       createDialogVisible: false,
+      passwordDialogVisible: false,
       createForm: {
         username: '',
         password: '',
         role: 'clerk'
+      },
+      passwordForm: {
+        userId: '',
+        password: '',
+        confirmPassword: ''
       },
       createRules: {
         username: [
@@ -106,6 +153,17 @@ export default {
         ],
         role: [
           { required: true, message: '请选择角色', trigger: 'change' }
+        ]
+      },
+      passwordRules: {
+        userId: [
+          { required: true, message: '请选择要修改的用户', trigger: 'change' }
+        ],
+        password: [
+          { required: true, message: '请输入新的登录密码', trigger: 'blur' }
+        ],
+        confirmPassword: [
+          { validator: validateConfirmPassword, trigger: 'blur' }
         ]
       },
       currentPage: 1,
@@ -175,6 +233,19 @@ export default {
         }
       })
     },
+    openPasswordDialog() {
+      this.passwordDialogVisible = true
+      this.passwordForm = {
+        userId: this.users.length ? this.users[0].id : '',
+        password: '',
+        confirmPassword: ''
+      }
+      this.$nextTick(() => {
+        if (this.$refs.passwordForm) {
+          this.$refs.passwordForm.clearValidate()
+        }
+      })
+    },
     createUser() {
       if (!this.$refs.createForm) return
 
@@ -194,6 +265,29 @@ export default {
           })
           .finally(() => {
             this.submitting = false
+          })
+      })
+    },
+    changePassword() {
+      if (!this.$refs.passwordForm) return
+
+      this.$refs.passwordForm.validate(valid => {
+        if (!valid) return
+
+        this.passwordSubmitting = true
+        axios.put(`/users/${this.passwordForm.userId}/password`, {
+          password: this.passwordForm.password
+        })
+          .then(() => {
+            this.$message.success('密码修改成功')
+            this.passwordDialogVisible = false
+          })
+          .catch(error => {
+            const serverMessage = error && error.response && error.response.data && error.response.data.msg
+            this.$message.error(serverMessage || '密码修改失败')
+          })
+          .finally(() => {
+            this.passwordSubmitting = false
           })
       })
     },
