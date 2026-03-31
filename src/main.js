@@ -8,7 +8,7 @@ import axios from 'axios'
 
 Vue.use(ElementUI, { locale })
 
-axios.defaults.baseURL = 'http://localhost:5000/api'
+axios.defaults.baseURL = '/api'
 axios.interceptors.request.use(config => {
   const token = sessionStorage.getItem('token')
   if (token) config.headers.Authorization = token
