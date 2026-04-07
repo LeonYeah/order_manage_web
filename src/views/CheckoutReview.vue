@@ -1,23 +1,30 @@
-﻿<template>
+<template>
   <div class="checkout-review">
     <el-form inline class="filters">
       <el-form-item label="客户名称">
         <el-input v-model.trim="filters.customer_name" placeholder="请输入客户名称" clearable />
+      </el-form-item>
+      <el-form-item label="订单编号">
+        <el-input v-model.trim="filters.order_number" placeholder="请输入订单编号" clearable />
       </el-form-item>
       <el-form-item v-if="isAdmin" label="制单员">
         <el-select v-model="filters.clerk_id" placeholder="请选择制单员" clearable>
           <el-option v-for="user in users" :key="user.id" :label="user.username" :value="user.id" />
         </el-select>
       </el-form-item>
-      <el-form-item label="审核状态">
-        <el-select v-model="filters.review_status" placeholder="请选择审核状态" clearable>
-          <el-option label="未审核" value="未审核" />
-          <el-option label="驳回" value="驳回" />
-          <el-option label="通过" value="通过" />
+      <el-form-item label="单据类型">
+        <el-select v-model="filters.record_type" placeholder="全部类型" clearable>
+          <el-option label="未结账审核" value="review" />
+          <el-option label="反结账申请" value="reverse" />
         </el-select>
       </el-form-item>
-      <el-form-item v-if="!isAdmin">
-        <el-checkbox v-model="filters.rejected_only">仅看被驳回单据</el-checkbox>
+      <el-form-item label="审核状态">
+        <el-select v-model="filters.status" placeholder="全部状态" clearable>
+          <el-option label="未审核" value="未审核" />
+          <el-option label="待审核" value="待审核" />
+          <el-option label="已驳回" value="已驳回" />
+          <el-option label="已通过" value="已通过" />
+        </el-select>
       </el-form-item>
       <el-form-item>
         <el-button type="primary" @click="getOrders">查询</el-button>
@@ -25,7 +32,20 @@
       </el-form-item>
     </el-form>
 
-    <el-table v-loading="loading" :data="pagedOrders" style="width: 100%" @row-dblclick="viewOrder">
+    <el-table
+      v-loading="loading"
+      :data="pagedOrders"
+      style="width: 100%"
+      :row-class-name="tableRowClassName"
+      @row-dblclick="viewOrder"
+    >
+      <el-table-column label="类型" width="110">
+        <template slot-scope="scope">
+          <el-tag :type="scope.row.record_type === 'reverse' ? 'danger' : 'warning'" size="mini">
+            {{ scope.row.record_type_label }}
+          </el-tag>
+        </template>
+      </el-table-column>
       <el-table-column prop="order_number" label="订单编号" min-width="150" />
       <el-table-column prop="customer_name" label="客户名称" min-width="120" />
       <el-table-column prop="clerk_name" label="制单员" width="100" />
@@ -36,23 +56,36 @@
       </el-table-column>
       <el-table-column label="审核状态" width="100">
         <template slot-scope="scope">
-          <el-tag :type="reviewTagType(scope.row.review_status)" size="mini">
-            {{ scope.row.review_status || '未审核' }}
+          <el-tag :type="statusTagType(scope.row.display_status)" size="mini">
+            {{ scope.row.display_status || '-' }}
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column prop="reject_reason" label="驳回原因" min-width="180" show-overflow-tooltip />
-      <el-table-column label="驳回人/驳回日期" min-width="190">
+      <el-table-column label="申请人/时间" min-width="190">
         <template slot-scope="scope">
-          <span v-if="scope.row.rejected_by_name || scope.row.rejected_at">
-            {{ scope.row.rejected_by_name || '-' }} / {{ formatDateTime(scope.row.rejected_at) }}
+          <span v-if="scope.row.record_type === 'reverse'">
+            {{ scope.row.reverse_checkout_requested_by_name || '-' }} /
+            {{ formatDateTime(scope.row.reverse_checkout_requested_at) }}
           </span>
           <span v-else>-</span>
         </template>
       </el-table-column>
-      <el-table-column label="重新提交日期" min-width="130">
+      <el-table-column label="驳回原因" min-width="180" show-overflow-tooltip>
         <template slot-scope="scope">
-          {{ formatDateTime(scope.row.resubmitted_at) }}
+          {{ scope.row.display_reject_reason || '-' }}
+        </template>
+      </el-table-column>
+      <el-table-column label="驳回人/时间" min-width="190">
+        <template slot-scope="scope">
+          <span v-if="scope.row.record_type === 'reverse' && (scope.row.reverse_checkout_rejected_by_name || scope.row.reverse_checkout_rejected_at)">
+            {{ scope.row.reverse_checkout_rejected_by_name || '-' }} /
+            {{ formatDateTime(scope.row.reverse_checkout_rejected_at) }}
+          </span>
+          <span v-else-if="scope.row.record_type === 'review' && (scope.row.rejected_by_name || scope.row.rejected_at)">
+            {{ scope.row.rejected_by_name || '-' }} /
+            {{ formatDateTime(scope.row.rejected_at) }}
+          </span>
+          <span v-else>-</span>
         </template>
       </el-table-column>
       <el-table-column label="总金额(元)" width="110">
@@ -63,13 +96,14 @@
       <el-table-column v-if="isAdmin" label="操作" width="170" fixed="right">
         <template slot-scope="scope">
           <el-button
-            v-if="scope.row.review_status !== '通过'"
+            v-if="canApprove(scope.row)"
             type="text"
             @click="approveOrder(scope.row)"
           >
             通过
           </el-button>
           <el-button
+            v-if="canReject(scope.row)"
             type="text"
             class="danger-btn"
             @click="openRejectDialog(scope.row)"
@@ -96,7 +130,7 @@
       <orders-view :order-id="currentOrderId" />
     </el-dialog>
 
-    <el-dialog title="驳回订单" :visible.sync="rejectDialogVisible" width="480px">
+    <el-dialog :title="rejectDialogTitle" :visible.sync="rejectDialogVisible" width="480px">
       <el-form label-width="95px">
         <el-form-item label="订单编号">
           <div>{{ rejectForm.order_number || '-' }}</div>
@@ -124,12 +158,13 @@
 import axios from 'axios'
 import OrdersView from '../components/OrdersView.vue'
 
-function createDefaultFilters(isAdmin) {
+function createDefaultFilters() {
   return {
     customer_name: '',
+    order_number: '',
     clerk_id: null,
-    review_status: '',
-    rejected_only: !isAdmin
+    record_type: '',
+    status: ''
   }
 }
 
@@ -138,7 +173,6 @@ export default {
   components: { OrdersView },
   data() {
     const currentUser = JSON.parse(sessionStorage.getItem('user')) || {}
-    const isAdmin = ['admin', 'ADMIN', '管理员'].includes(currentUser.role)
     return {
       currentUser,
       orders: [],
@@ -153,9 +187,10 @@ export default {
       rejectForm: {
         order_id: null,
         order_number: '',
-        reason: ''
+        reason: '',
+        record_type: 'review'
       },
-      filters: createDefaultFilters(isAdmin)
+      filters: createDefaultFilters()
     }
   },
   computed: {
@@ -171,6 +206,9 @@ export default {
     pagedOrders() {
       const start = (this.currentPage - 1) * this.pageSize
       return this.orders.slice(start, start + this.pageSize)
+    },
+    rejectDialogTitle() {
+      return this.rejectForm.record_type === 'reverse' ? '驳回反结账申请' : '驳回未结账订单'
     }
   },
   mounted() {
@@ -183,21 +221,8 @@ export default {
     toCompactDate(value) {
       if (!value) return '-'
       const text = String(value).trim()
-
       const isoMatched = text.match(/^(\d{4})[-/](\d{2})[-/](\d{2})/)
       if (isoMatched) return `${isoMatched[1]}${isoMatched[2]}${isoMatched[3]}`
-
-      const rfcMatched = text.match(/^[A-Za-z]{3},\s+(\d{1,2})\s+([A-Za-z]{3})\s+(\d{4})/)
-      if (rfcMatched) {
-        const monthMap = {
-          Jan: '01', Feb: '02', Mar: '03', Apr: '04', May: '05', Jun: '06',
-          Jul: '07', Aug: '08', Sep: '09', Oct: '10', Nov: '11', Dec: '12'
-        }
-        const dd = `${Number(rfcMatched[1])}`.padStart(2, '0')
-        const mm = monthMap[rfcMatched[2]]
-        if (mm) return `${rfcMatched[3]}${mm}${dd}`
-      }
-
       const date = new Date(text)
       if (Number.isNaN(date.getTime())) return text
       const yyyy = date.getFullYear()
@@ -205,16 +230,52 @@ export default {
       const dd = `${date.getDate()}`.padStart(2, '0')
       return `${yyyy}${mm}${dd}`
     },
-    reviewTagType(status) {
-      if (status === '驳回') return 'danger'
-      if (status === '未审核') return 'warning'
-      return 'success'
-    },
     formatCompactDate(value) {
       return this.toCompactDate(value)
     },
     formatDateTime(value) {
       return this.toCompactDate(value)
+    },
+    statusTagType(status) {
+      if (status === '已驳回') return 'danger'
+      if (status === '已通过') return 'success'
+      return 'warning'
+    },
+    tableRowClassName({ row }) {
+      return row.record_type === 'reverse' ? 'reverse-checkout-row' : ''
+    },
+    canApprove(row) {
+      if (row.record_type === 'reverse') return row.reverse_checkout_status === '待审核'
+      return row.review_status !== '已通过'
+    },
+    canReject(row) {
+      if (row.record_type === 'reverse') return row.reverse_checkout_status === '待审核'
+      return true
+    },
+    normalizeReviewOrders(list) {
+      return (list || []).map(item => ({
+        ...item,
+        record_type: 'review',
+        record_type_label: '未结账审核',
+        display_status: item.review_status || '未审核',
+        display_reject_reason: item.reject_reason || ''
+      }))
+    },
+    normalizeReverseOrders(list) {
+      return (list || []).map(item => ({
+        ...item,
+        record_type: 'reverse',
+        record_type_label: '反结账申请',
+        display_status: item.reverse_checkout_status || '待审核',
+        display_reject_reason: item.reverse_checkout_reason || ''
+      }))
+    },
+    filterMergedOrders(list) {
+      return list.filter(item => {
+        if (this.filters.record_type && item.record_type !== this.filters.record_type) return false
+        if (this.filters.status && item.display_status !== this.filters.status) return false
+        return true
+      })
     },
     getUsers() {
       axios.get('/users').then(res => {
@@ -224,30 +285,47 @@ export default {
       })
     },
     resetFilters() {
-      this.filters = createDefaultFilters(this.isAdmin)
+      this.filters = createDefaultFilters()
       this.getOrders()
     },
-    buildParams() {
+    buildReviewParams() {
       return {
         customer_name: this.filters.customer_name || undefined,
+        order_number: this.filters.order_number || undefined,
         clerk_id: this.isAdmin ? this.filters.clerk_id : undefined,
-        review_status: this.filters.review_status || undefined,
-        rejected_only: this.filters.rejected_only || undefined
+        review_status: ['', '未审核', '已驳回', '已通过'].includes(this.filters.status) ? (this.filters.status || undefined) : undefined
+      }
+    },
+    buildReverseParams() {
+      return {
+        customer_name: this.filters.customer_name || undefined,
+        order_number: this.filters.order_number || undefined,
+        clerk_id: this.isAdmin ? this.filters.clerk_id : undefined,
+        reverse_status: ['', '待审核', '已驳回'].includes(this.filters.status) ? (this.filters.status || undefined) : undefined
       }
     },
     getOrders() {
       this.loading = true
-      axios.get('/orders/review', { params: this.buildParams() })
-        .then(res => {
-          this.orders = res.data || []
-          this.currentPage = 1
+      Promise.all([
+        axios.get('/orders/review', { params: this.buildReviewParams() }),
+        axios.get('/orders/reverse-checkout', { params: this.buildReverseParams() })
+      ]).then(([reviewRes, reverseRes]) => {
+        const merged = [
+          ...this.normalizeReviewOrders(reviewRes.data || []),
+          ...this.normalizeReverseOrders(reverseRes.data || [])
+        ]
+        merged.sort((a, b) => {
+          const aTime = new Date(a.reverse_checkout_requested_at || a.resubmitted_at || a.rejected_at || a.order_date || 0).getTime()
+          const bTime = new Date(b.reverse_checkout_requested_at || b.resubmitted_at || b.rejected_at || b.order_date || 0).getTime()
+          return bTime - aTime
         })
-        .catch(() => {
-          this.$message.error('反结账订单加载失败')
-        })
-        .finally(() => {
-          this.loading = false
-        })
+        this.orders = this.filterMergedOrders(merged)
+        this.currentPage = 1
+      }).catch(() => {
+        this.$message.error('审核单据加载失败')
+      }).finally(() => {
+        this.loading = false
+      })
     },
     viewOrder(row) {
       this.currentOrderId = row.id
@@ -257,7 +335,8 @@ export default {
       this.rejectForm = {
         order_id: row.id,
         order_number: row.order_number,
-        reason: row.reject_reason || ''
+        reason: row.display_reject_reason || '',
+        record_type: row.record_type
       }
       this.rejectDialogVisible = true
     },
@@ -267,10 +346,13 @@ export default {
         return
       }
       this.rejecting = true
-      axios.post(`/orders/${this.rejectForm.order_id}/reject`, {
+      const url = this.rejectForm.record_type === 'reverse'
+        ? `/orders/${this.rejectForm.order_id}/reverse-checkout/reject`
+        : `/orders/${this.rejectForm.order_id}/reject`
+      axios.post(url, {
         reason: this.rejectForm.reason
       }).then(() => {
-        this.$message.success('订单已驳回')
+        this.$message.success(this.rejectForm.record_type === 'reverse' ? '反结账申请已驳回' : '订单已驳回')
         this.rejectDialogVisible = false
         this.getOrders()
       }).catch(error => {
@@ -281,9 +363,12 @@ export default {
       })
     },
     approveOrder(row) {
-      axios.post(`/orders/${row.id}/approve`)
+      const url = row.record_type === 'reverse'
+        ? `/orders/${row.id}/reverse-checkout/approve`
+        : `/orders/${row.id}/approve`
+      axios.post(url)
         .then(() => {
-          this.$message.success('订单审核通过')
+          this.$message.success(row.record_type === 'reverse' ? '反结账申请已通过，订单已恢复为未结账' : '订单审核通过')
           this.getOrders()
         })
         .catch(error => {
@@ -326,5 +411,11 @@ export default {
 .page-tip {
   font-size: 13px;
   color: #606266;
+}
+</style>
+
+<style>
+.checkout-review .el-table .reverse-checkout-row {
+  background: #fff1f0;
 }
 </style>

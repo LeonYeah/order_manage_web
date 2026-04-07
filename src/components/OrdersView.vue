@@ -7,15 +7,15 @@
           <div class="meta-item">订单编号：{{ order.order_number }}</div>
           <div class="meta-item">
             客户名称：
-            <el-input v-model.trim="order.customer_name" size="small" style="width: 150px" />
+            <el-input v-model.trim="order.customer_name" size="small" style="width: 150px" :disabled="isSettledLocked" />
           </div>
           <div class="meta-item">
             收件人：
-            <el-input v-model.trim="order.recipient_name" size="small" style="width: 120px" />
+            <el-input v-model.trim="order.recipient_name" size="small" style="width: 120px" :disabled="isSettledLocked" />
           </div>
           <div class="meta-item">
             收件地址：
-            <el-input v-model.trim="order.recipient_address" size="small" style="width: 220px" />
+            <el-input v-model.trim="order.recipient_address" size="small" style="width: 220px" :disabled="isSettledLocked" />
           </div>
           <div class="meta-item order-date-item">
             下单日期：
@@ -27,6 +27,7 @@
               value-format="yyyy-MM-dd"
               class="order-date-picker"
               placeholder="选择日期"
+              :disabled="isSettledLocked"
             />
           </div>
           <div class="meta-item">
@@ -34,7 +35,9 @@
           </div>
           <div class="meta-item">
             业务员：
-            <el-input v-model.trim="order.salesperson" size="small" style="width: 120px" placeholder="可选" />
+            <el-select v-model="order.salesperson" filterable clearable size="small" style="width: 160px" placeholder="选择业务员" :disabled="isSettledLocked">
+              <el-option v-for="item in salespersons" :key="item.id" :label="item.name" :value="item.name" />
+            </el-select>
           </div>
           <div class="meta-item">
             结账状态：
@@ -43,6 +46,7 @@
               size="small"
               style="width: 96px"
               @change="handleSettlementStatusChange"
+              :disabled="isSettledLocked"
             >
               <el-option label="已结账" value="已结账" />
               <el-option label="未结账" value="未结账" />
@@ -50,10 +54,13 @@
           </div>
           <div v-if="order.settlement_status === '已结账'" class="meta-item">
             结账方式：
-            <el-select v-model="order.payment_method" size="small" style="width: 120px">
-              <el-option label="微信" value="微信" />
+            <el-select v-model="order.payment_method" size="small" style="width: 160px" :disabled="isSettledLocked">
               <el-option label="支付宝" value="支付宝" />
-              <el-option label="现金" value="现金" />
+              <el-option label="微信" value="微信" />
+              <el-option label="银城漆行二维码" value="银城漆行二维码" />
+              <el-option label="银城漆行对公" value="银城漆行对公" />
+              <el-option label="艺彩对公" value="艺彩对公" />
+              <el-option label="百绘彩对公" value="百绘彩对公" />
             </el-select>
           </div>
         </div>
@@ -61,19 +68,27 @@
 
       <el-table :data="items" class="detail-table" style="width: 100%" border>
         <el-table-column type="index" label="序号" width="48" />
-        <el-table-column label="商品名称" min-width="150">
+        <el-table-column label="商品编号/颜色" min-width="140">
           <template slot-scope="scope">
-            <el-select v-model="scope.row.product_id" class="full-width" size="small" @change="updateProduct(scope.row)">
-              <el-option v-for="product in products" :key="product.id" :label="product.name" :value="product.id" />
-            </el-select>
+            <div class="code-color-cell">
+              <el-input v-model.trim="scope.row.product_code" size="small" placeholder="商品编号" :disabled="isSettledLocked" />
+              <el-input v-model.trim="scope.row.color" size="small" placeholder="颜色" :disabled="isSettledLocked" />
+            </div>
           </template>
         </el-table-column>
-        <el-table-column prop="product_code" label="商品编号" min-width="96" />
-        <el-table-column prop="english_name" label="英文名称" min-width="108" />
-        <el-table-column prop="capacity" label="容量" width="80" />
-        <el-table-column label="颜色" width="100">
+        <el-table-column label="商品名称" min-width="150">
           <template slot-scope="scope">
-            <el-input v-model.trim="scope.row.color" size="small" placeholder="颜色" />
+            <el-input v-model.trim="scope.row.product_name" class="full-width" size="small" placeholder="手动输入商品名称" :disabled="isSettledLocked" />
+          </template>
+        </el-table-column>
+        <el-table-column label="英文名称" min-width="108">
+          <template slot-scope="scope">
+            <el-input v-model.trim="scope.row.english_name" size="small" placeholder="英文名称" :disabled="isSettledLocked" />
+          </template>
+        </el-table-column>
+        <el-table-column label="容量" width="80">
+          <template slot-scope="scope">
+            <el-input v-model.trim="scope.row.capacity" size="small" placeholder="容量" :disabled="isSettledLocked" />
           </template>
         </el-table-column>
         <el-table-column label="数量" width="118">
@@ -83,6 +98,7 @@
               size="mini"
               :min="1"
               @change="updateAmountFromUnitPrice(scope.row)"
+              :disabled="isSettledLocked"
             />
           </template>
         </el-table-column>
@@ -96,6 +112,7 @@
               :step="0.1"
               controls-position="right"
               @change="updateAmountFromUnitPrice(scope.row)"
+              :disabled="isSettledLocked"
             />
           </template>
         </el-table-column>
@@ -109,6 +126,7 @@
               :step="0.1"
               controls-position="right"
               @change="updateUnitPriceFromAmount(scope.row)"
+              :disabled="isSettledLocked"
             />
           </template>
         </el-table-column>
@@ -122,23 +140,28 @@
               value-format="yyyy-MM-dd"
               class="full-width"
               placeholder="选择日期"
+              :disabled="isSettledLocked"
             />
           </template>
         </el-table-column>
         <el-table-column label="备注" min-width="150">
           <template slot-scope="scope">
-            <el-input v-model.trim="scope.row.remark" size="small" placeholder="备注" />
+            <el-input v-model.trim="scope.row.remark" size="small" placeholder="备注" :disabled="isSettledLocked" />
           </template>
         </el-table-column>
         <el-table-column label="操作" width="80">
           <template slot-scope="scope">
-            <el-button type="text" size="small" @click="removeItem(scope.$index)">删除</el-button>
+            <el-button type="text" size="small" @click="removeItem(scope.$index)" :disabled="isSettledLocked">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
 
       <div class="detail-actions">
-        <el-button size="small" @click="addItem">增加商品</el-button>
+        <el-button size="small" @click="addItem" :disabled="isSettledLocked">增加商品</el-button>
+      </div>
+
+      <div v-if="isSettledLocked" class="locked-tip">
+        已结账订单不能直接修改价格或明细，需先提交反结账申请，待管理员审核通过后再修改。
       </div>
 
       <div class="order-footer">
@@ -152,6 +175,7 @@
             :step="0.1"
             controls-position="right"
             @change="updateTotal"
+            :disabled="isSettledLocked"
           />
           <span class="amount-unit">元</span>
         </div>
@@ -165,18 +189,28 @@
             :step="0.1"
             controls-position="right"
             @change="updateTotal"
+            :disabled="isSettledLocked"
           />
           <span class="amount-unit">元</span>
         </div>
         <div class="footer-item">
           订单备注：
-          <el-input v-model.trim="order.remark" size="small" style="width: 176px" placeholder="订单备注" />
+          <el-input v-model.trim="order.remark" size="small" style="width: 176px" placeholder="订单备注" :disabled="isSettledLocked" />
         </div>
         <div class="footer-total">总金额：{{ Number(order.total_amount || 0).toFixed(2) }}元</div>
       </div>
 
       <div class="footer-buttons">
-        <el-button type="primary" :loading="saving" @click="saveOrder">上传修改</el-button>
+        <el-button v-if="!isSettledLocked" type="primary" :loading="saving" @click="saveOrder">上传修改</el-button>
+        <el-button
+          v-else
+          type="warning"
+          :loading="requestingReverseCheckout"
+          :disabled="order.reverse_checkout_status === '待审核'"
+          @click="requestReverseCheckout"
+        >
+          {{ reverseCheckoutActionText }}
+        </el-button>
         <el-button type="success" @click="printOrder">打印订单</el-button>
       </div>
     </div>
@@ -190,6 +224,7 @@ import axios from 'axios'
 function createEmptyItem() {
   return {
     product_id: null,
+    product_name: '',
     product_code: '',
     english_name: '',
     capacity: '',
@@ -205,11 +240,26 @@ function createEmptyItem() {
 export default {
   props: ['orderId'],
   data() {
+    const currentUser = JSON.parse(sessionStorage.getItem('user')) || {}
     return {
+      currentUser,
       order: null,
+      originalSettlementStatus: '',
       items: [],
-      products: [],
-      saving: false
+      salespersons: [],
+      saving: false,
+      requestingReverseCheckout: false
+    }
+  },
+  computed: {
+    isSettledLocked() {
+      return !!this.order && this.originalSettlementStatus === '已结账'
+    },
+    reverseCheckoutActionText() {
+      if (!this.order) return '提交反结账审核'
+      if (this.order.reverse_checkout_status === '待审核') return '反结账审核中'
+      if (this.order.reverse_checkout_status === '已驳回') return '重新提交反结账审核'
+      return '提交反结账审核'
     }
   },
   watch: {
@@ -217,7 +267,7 @@ export default {
       immediate: true,
       handler(val) {
         if (val) {
-          this.getProducts()
+          this.getSalespersons()
           this.loadOrder()
         }
       }
@@ -245,13 +295,13 @@ export default {
       const date = this.normalizeDate(value)
       return date ? date.replace(/-/g, '') : ''
     },
-    getProducts() {
-      axios.get('/products')
+    getSalespersons() {
+      axios.get('/salespersons')
         .then(res => {
-          this.products = res.data || []
+          this.salespersons = res.data || []
         })
         .catch(() => {
-          this.$message.error('商品数据加载失败')
+          this.salespersons = []
         })
     },
     loadOrder() {
@@ -259,7 +309,7 @@ export default {
         .then(res => {
           const items = (res.data.items || []).map(item => ({
             product_id: item.product_id,
-            product_name: item.product_name,
+            product_name: item.product_name || '',
             product_code: item.product_code,
             english_name: item.english_name,
             capacity: item.capacity,
@@ -276,6 +326,8 @@ export default {
             order_date: this.normalizeDate(res.data.order_date),
             settlement_status: res.data.settlement_status || '已结账',
             payment_method: res.data.payment_method || '',
+            reverse_checkout_status: res.data.reverse_checkout_status || '无',
+            reverse_checkout_reason: res.data.reverse_checkout_reason || '',
             shipping_fee: Number(res.data.shipping_fee || 0),
             discount_amount: Number(res.data.discount_amount || 0),
             total_amount: Number(res.data.total_amount || 0),
@@ -284,6 +336,7 @@ export default {
             salesperson: res.data.salesperson || '',
             remark: res.data.remark || ''
           }
+          this.originalSettlementStatus = this.order.settlement_status || ''
           this.items = items
         })
         .catch(() => {
@@ -297,16 +350,6 @@ export default {
     removeItem(index) {
       this.items.splice(index, 1)
       this.updateTotal()
-    },
-    updateProduct(row) {
-      const product = this.products.find(item => item.id === row.product_id)
-      if (!product) return
-
-      row.product_name = product.name
-      row.product_code = product.product_code
-      row.english_name = product.english_name
-      row.capacity = product.capacity
-      this.updateAmountFromUnitPrice(row)
     },
     updateAmountFromUnitPrice(row) {
       row.amount = Number((Number(row.quantity || 0) * Number(row.unit_price || 0)).toFixed(2))
@@ -327,10 +370,14 @@ export default {
       if (value === '未结账') {
         this.order.payment_method = ''
       } else if (!this.order.payment_method) {
-        this.order.payment_method = '微信'
+        this.order.payment_method = '支付宝'
       }
     },
     validateOrder() {
+      if (this.isSettledLocked) {
+        this.$message.error('已结账订单需先提交反结账申请并经管理员审核后才能修改')
+        return false
+      }
       if (!this.order.customer_name) {
         this.$message.error('请输入客户名称')
         return false
@@ -339,7 +386,7 @@ export default {
         this.$message.error('请至少保留一条商品明细')
         return false
       }
-      const invalidItem = this.items.find(item => !item.product_id || Number(item.quantity || 0) <= 0)
+      const invalidItem = this.items.find(item => !String(item.product_name || '').trim() || Number(item.quantity || 0) <= 0)
       if (invalidItem) {
         this.$message.error('请完善商品和数量等必填信息')
         return false
@@ -367,7 +414,11 @@ export default {
         total_amount: Number(this.order.total_amount || 0),
         remark: this.order.remark || '',
         items: this.items.map(item => ({
-          product_id: item.product_id,
+          product_id: item.product_id || null,
+          product_name: item.product_name || '',
+          product_code: item.product_code || '',
+          english_name: item.english_name || '',
+          capacity: item.capacity || '',
           quantity: Number(item.quantity || 0),
           unit_price: Number(item.unit_price || 0),
           amount: Number(item.amount || 0),
@@ -394,6 +445,23 @@ export default {
           this.saving = false
         })
     },
+    requestReverseCheckout() {
+      if (!this.order || this.order.settlement_status !== '已结账') return
+
+      this.requestingReverseCheckout = true
+      axios.post(`/orders/${this.orderId}/reverse-checkout`)
+        .then(() => {
+          this.$message.success('反结账申请已提交，请等待管理员审核')
+          this.loadOrder()
+        })
+        .catch(error => {
+          const serverMessage = error && error.response && error.response.data && error.response.data.msg
+          this.$message.error(serverMessage || '反结账申请提交失败')
+        })
+        .finally(() => {
+          this.requestingReverseCheckout = false
+        })
+    },
     escapeHtml(value) {
       return String(value)
         .replace(/&/g, '&amp;')
@@ -406,20 +474,25 @@ export default {
       const text = value === null || value === undefined ? '' : String(value).trim()
       return this.escapeHtml(text || '/')
     },
+    maskPhoneForPrint(value) {
+      const text = value === null || value === undefined ? '' : String(value)
+      return text
+        .replace(/(^|[^\d])1\d{10}(?=[^\d]|$)/g, '$1')
+        .replace(/\s{2,}/g, ' ')
+        .replace(/[ ,，;；/]{2,}/g, ' ')
+        .trim()
+    },
     getProductName(item) {
-      if (item && item.product_name) return item.product_name
-      const product = this.products.find(p => p.id === (item && item.product_id))
-      return (product && product.name) || ''
+      return (item && item.product_name) || ''
     },
     buildPrintHtml() {
       const rows = (this.items || []).map((item, index) => `
         <tr>
           <td>${index + 1}</td>
+          <td>${this.printCell([item.product_code, item.color].filter(Boolean).join('/'))}</td>
           <td>${this.printCell(this.getProductName(item))}</td>
-          <td>${this.printCell(item.product_code)}</td>
           <td>${this.printCell(item.english_name)}</td>
           <td>${this.printCell(item.capacity)}</td>
-          <td>${this.printCell(item.color)}</td>
           <td>${this.printCell(item.quantity)}</td>
           <td>${this.printCell(this.compactDate(item.sample_date))}</td>
           <td>${this.printCell(item.remark)}</td>
@@ -433,23 +506,22 @@ export default {
             <div>订单编号：${this.printCell(this.order.order_number)}</div>
             <div>下单日期：${this.printCell(this.compactDate(this.order.order_date))}</div>
             <div>收件人：${this.printCell(this.order.recipient_name || this.order.customer_name)}</div>
-            <div>收货地址：${this.printCell(this.order.recipient_address)}</div>
+            <div>收货地址：${this.printCell(this.maskPhoneForPrint(this.order.recipient_address))}</div>
           </div>
           <table>
             <thead>
               <tr>
                 <th style="width:4%">序号</th>
+                <th style="width:12%">商品编号/颜色</th>
                 <th style="width:12%">商品名称</th>
-                <th style="width:10%">商品编号</th>
                 <th style="width:12%">英文名称</th>
-                <th style="width:9%">容量</th>
-                <th style="width:9%">颜色</th>
+                <th style="width:10%">容量</th>
                 <th style="width:8%">数量</th>
                 <th style="width:14%">来样日期</th>
-                <th style="width:22%">备注</th>
+                <th style="width:28%">备注</th>
               </tr>
             </thead>
-            <tbody>${rows || '<tr><td colspan="9">/</td></tr>'}</tbody>
+            <tbody>${rows || '<tr><td colspan="8">/</td></tr>'}</tbody>
           </table>
         </section>
       `
@@ -533,6 +605,12 @@ export default {
   margin-top: 10px;
 }
 
+.locked-tip {
+  margin-top: 10px;
+  color: #e6a23c;
+  font-size: 13px;
+}
+
 .order-footer {
   display: flex;
   flex-wrap: wrap;
@@ -567,6 +645,15 @@ export default {
   width: 100%;
 }
 
+.code-color-cell {
+  display: flex;
+  gap: 8px;
+}
+
+.code-color-cell .el-input {
+  flex: 1;
+}
+
 .el-table .cell {
   white-space: normal;
 }
@@ -582,3 +669,6 @@ export default {
   width: 100%;
 }
 </style>
+
+
+

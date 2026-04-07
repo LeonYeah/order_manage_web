@@ -62,9 +62,12 @@
       </el-form-item>
       <el-form-item label="结账方式">
         <el-select v-model="filters.payment_method" placeholder="全部方式" clearable>
-          <el-option label="微信" value="微信" />
           <el-option label="支付宝" value="支付宝" />
-          <el-option label="现金" value="现金" />
+          <el-option label="微信" value="微信" />
+          <el-option label="银城漆行二维码" value="银城漆行二维码" />
+          <el-option label="银城漆行对公" value="银城漆行对公" />
+          <el-option label="艺彩对公" value="艺彩对公" />
+          <el-option label="百绘彩对公" value="百绘彩对公" />
         </el-select>
       </el-form-item>
       <el-form-item>

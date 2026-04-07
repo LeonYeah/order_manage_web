@@ -44,7 +44,7 @@ export default {
     },
     isTrialExpired() {
       const now = new Date()
-      const expiryTime = new Date(2026, 3, 7, 0, 0, 0, 0)
+      const expiryTime = new Date(2026, 4, 7, 0, 0, 0, 0)
 
       return now >= expiryTime
     },
@@ -63,8 +63,9 @@ export default {
           sessionStorage.setItem('user', JSON.stringify(this.buildUserFromResponse(res.data)))
           this.$router.push('/dashboard')
         })
-        .catch(() => {
-          this.$message.error('用户名或密码错误')
+        .catch(error => {
+          const message = error && error.response && error.response.data && error.response.data.msg
+          this.$message.error(message || '登录失败，请检查前后端服务是否已启动')
         })
     }
   }

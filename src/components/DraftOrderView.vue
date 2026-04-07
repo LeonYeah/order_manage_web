@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="draft-order-view">
     <div v-if="draft">
       <div class="order-header">
@@ -9,14 +9,16 @@
           </div>
           <div class="meta-item">
             业务员：
-            <el-input v-model.trim="draft.salesperson" size="small" style="width: 120px" />
+            <el-select v-model="draft.salesperson" filterable clearable size="small" style="width: 160px" placeholder="选择业务员">
+              <el-option v-for="item in salespersons" :key="item.id" :label="item.name" :value="item.name" />
+            </el-select>
           </div>
           <div class="meta-item">
             收件人：
             <el-input v-model.trim="draft.recipient_name" size="small" style="width: 120px" />
           </div>
           <div class="meta-item">
-            收件地址：
+            收货地址：
             <el-input v-model.trim="draft.recipient_address" size="small" style="width: 220px" />
           </div>
           <div class="meta-item order-date-item">
@@ -45,10 +47,13 @@
           </div>
           <div v-if="draft.settlement_status === '已结账'" class="meta-item">
             结账方式：
-            <el-select v-model="draft.payment_method" size="small" style="width: 120px">
-              <el-option label="微信" value="微信" />
+            <el-select v-model="draft.payment_method" size="small" style="width: 160px">
               <el-option label="支付宝" value="支付宝" />
-              <el-option label="现金" value="现金" />
+              <el-option label="微信" value="微信" />
+              <el-option label="银城漆行二维码" value="银城漆行二维码" />
+              <el-option label="银城漆行对公" value="银城漆行对公" />
+              <el-option label="艺彩对公" value="艺彩对公" />
+              <el-option label="百绘彩对公" value="百绘彩对公" />
             </el-select>
           </div>
         </div>
@@ -56,19 +61,27 @@
 
       <el-table :data="items" class="detail-table" style="width: 100%" border>
         <el-table-column type="index" label="序号" width="48" />
-        <el-table-column label="商品名称" min-width="150">
+        <el-table-column label="商品编号/颜色" min-width="140">
           <template slot-scope="scope">
-            <el-select v-model="scope.row.product_id" class="full-width" size="small" @change="updateProduct(scope.row)">
-              <el-option v-for="product in products" :key="product.id" :label="product.name" :value="product.id" />
-            </el-select>
+            <div class="code-color-cell">
+              <el-input v-model.trim="scope.row.product_code" size="small" placeholder="商品编号" />
+              <el-input v-model.trim="scope.row.color" size="small" placeholder="颜色" />
+            </div>
           </template>
         </el-table-column>
-        <el-table-column prop="product_code" label="商品编号" min-width="96" />
-        <el-table-column prop="english_name" label="英文名称" min-width="108" />
-        <el-table-column prop="capacity" label="容量" width="80" />
-        <el-table-column prop="color" label="颜色" width="110">
+        <el-table-column label="商品名称" min-width="150">
           <template slot-scope="scope">
-            <el-input v-model.trim="scope.row.color" size="small" placeholder="颜色" />
+            <el-input v-model.trim="scope.row.product_name" class="full-width" size="small" placeholder="手动输入商品名称" />
+          </template>
+        </el-table-column>
+        <el-table-column label="英文名称" min-width="108">
+          <template slot-scope="scope">
+            <el-input v-model.trim="scope.row.english_name" size="small" placeholder="英文名称" />
+          </template>
+        </el-table-column>
+        <el-table-column label="容量" width="80">
+          <template slot-scope="scope">
+            <el-input v-model.trim="scope.row.capacity" size="small" placeholder="容量" />
           </template>
         </el-table-column>
         <el-table-column label="数量" width="118">
@@ -184,6 +197,7 @@ import axios from 'axios'
 function createEmptyItem() {
   return {
     product_id: null,
+    product_name: '',
     product_code: '',
     english_name: '',
     capacity: '',
@@ -202,7 +216,7 @@ export default {
     return {
       draft: null,
       items: [],
-      products: [],
+      salespersons: [],
       saving: false
     }
   },
@@ -211,13 +225,22 @@ export default {
       immediate: true,
       handler(val) {
         if (val) {
-          this.getProducts()
+          this.getSalespersons()
           this.loadDraft()
         }
       }
     }
   },
   methods: {
+    getSalespersons() {
+      axios.get('/salespersons')
+        .then(res => {
+          this.salespersons = res.data || []
+        })
+        .catch(() => {
+          this.salespersons = []
+        })
+    },
     normalizeDate(value) {
       if (!value) return ''
       if (typeof value === 'string') {
@@ -233,24 +256,15 @@ export default {
       const day = `${date.getDate()}`.padStart(2, '0')
       return `${year}-${month}-${day}`
     },
-    getProducts() {
-      axios.get('/products')
-        .then(res => {
-          this.products = res.data || []
-        })
-        .catch(() => {
-          this.$message.error('商品数据加载失败')
-        })
-    },
     loadDraft() {
       axios.get(`/order-drafts/${this.draftId}`)
         .then(res => {
           const items = (res.data.items || []).map(item => ({
             product_id: item.product_id,
-            product_name: item.product_name,
-            product_code: item.product_code,
-            english_name: item.english_name,
-            capacity: item.capacity,
+            product_name: item.product_name || '',
+            product_code: item.product_code || '',
+            english_name: item.english_name || '',
+            capacity: item.capacity || '',
             color: item.color || '',
             quantity: Number(item.quantity || 0),
             unit_price: Number(item.unit_price || 0),
@@ -285,15 +299,6 @@ export default {
       this.items.splice(index, 1)
       this.updateTotal()
     },
-    updateProduct(row) {
-      const product = this.products.find(item => item.id === row.product_id)
-      if (!product) return
-      row.product_name = product.name
-      row.product_code = product.product_code
-      row.english_name = product.english_name
-      row.capacity = product.capacity
-      this.updateAmountFromUnitPrice(row)
-    },
     updateAmountFromUnitPrice(row) {
       row.amount = Number((Number(row.quantity || 0) * Number(row.unit_price || 0)).toFixed(2))
       this.updateTotal()
@@ -313,7 +318,7 @@ export default {
       if (value === '未结账') {
         this.draft.payment_method = ''
       } else if (!this.draft.payment_method) {
-        this.draft.payment_method = '微信'
+        this.draft.payment_method = '支付宝'
       }
     },
     validateDraft() {
@@ -325,7 +330,7 @@ export default {
         this.$message.error('请至少保留一条商品明细')
         return false
       }
-      const invalidItem = this.items.find(item => !item.product_id || Number(item.quantity || 0) <= 0)
+      const invalidItem = this.items.find(item => !String(item.product_name || '').trim() || Number(item.quantity || 0) <= 0)
       if (invalidItem) {
         this.$message.error('请完善商品、数量等必填信息')
         return false
@@ -351,7 +356,11 @@ export default {
         payment_method: this.draft.settlement_status === '已结账' ? this.draft.payment_method : '',
         remark: this.draft.remark || '',
         items: this.items.map(item => ({
-          product_id: item.product_id,
+          product_id: item.product_id || null,
+          product_name: item.product_name || '',
+          product_code: item.product_code || '',
+          english_name: item.english_name || '',
+          capacity: item.capacity || '',
           quantity: Number(item.quantity || 0),
           unit_price: Number(item.unit_price || 0),
           amount: Number(item.amount || 0),
@@ -447,6 +456,15 @@ export default {
 
 .full-width {
   width: 100%;
+}
+
+.code-color-cell {
+  display: flex;
+  gap: 8px;
+}
+
+.code-color-cell .el-input {
+  flex: 1;
 }
 </style>
 

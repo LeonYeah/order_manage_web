@@ -12,6 +12,12 @@ module.exports = merge(baseWebpackConfig, {
     hot: true,
     host: '0.0.0.0',
     port: 8090,
+    proxy: {
+      '/api': {
+        target: 'http://host.docker.internal:5000',
+        changeOrigin: true
+      }
+    },
     overlay: true,
     stats: 'minimal'
   },
