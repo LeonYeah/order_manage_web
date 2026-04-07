@@ -59,37 +59,6 @@
       </div>
     </el-card>
 
-    <el-card shadow="never" class="salesperson-card">
-      <div slot="header" class="page-header">
-        <div>
-          <h2 class="page-title">业务员管理</h2>
-          <p class="page-desc">仅管理员可新增或删除业务员，供下单时直接选择。</p>
-        </div>
-        <div class="header-actions" v-if="isAdmin">
-          <el-button @click="getSalespersons">刷新</el-button>
-          <el-button type="primary" @click="openSalespersonCreateDialog">新增业务员</el-button>
-          <el-button type="danger" @click="openSalespersonDeleteDialog">删除业务员</el-button>
-        </div>
-      </div>
-
-      <el-table
-        v-if="isAdmin"
-        v-loading="salespersonLoading"
-        :data="salespersons"
-        border
-        style="width: 100%"
-        empty-text="暂无业务员数据"
-      >
-        <el-table-column type="index" label="序号" width="80" />
-        <el-table-column prop="name" label="业务员名称" min-width="180" />
-        <el-table-column prop="created_at" label="创建时间" min-width="180">
-          <template slot-scope="scope">
-            {{ formatDate(scope.row.created_at) }}
-          </template>
-        </el-table-column>
-      </el-table>
-    </el-card>
-
     <el-dialog title="新增用户" :visible.sync="createDialogVisible" width="460px">
       <el-form ref="createForm" :model="createForm" :rules="createRules" label-width="90px">
         <el-form-item label="用户名" prop="username">
@@ -155,36 +124,6 @@
       </div>
     </el-dialog>
 
-    <el-dialog title="新增业务员" :visible.sync="salespersonCreateDialogVisible" width="460px">
-      <el-form ref="salespersonCreateFormRef" :model="salespersonCreateForm" :rules="salespersonCreateRules" label-width="110px">
-        <el-form-item label="业务员名称" prop="name">
-          <el-input v-model.trim="salespersonCreateForm.name" maxlength="30" />
-        </el-form-item>
-      </el-form>
-      <div slot="footer">
-        <el-button @click="salespersonCreateDialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="salespersonSubmitting" @click="createSalesperson">确定</el-button>
-      </div>
-    </el-dialog>
-
-    <el-dialog title="删除业务员" :visible.sync="salespersonDeleteDialogVisible" width="460px">
-      <el-form ref="salespersonDeleteFormRef" :model="salespersonDeleteForm" :rules="salespersonDeleteRules" label-width="110px">
-        <el-form-item label="选择业务员" prop="salespersonId">
-          <el-select v-model="salespersonDeleteForm.salespersonId" filterable placeholder="请选择业务员" style="width: 100%">
-            <el-option
-              v-for="item in salespersons"
-              :key="item.id"
-              :label="item.name"
-              :value="item.id"
-            />
-          </el-select>
-        </el-form-item>
-      </el-form>
-      <div slot="footer">
-        <el-button @click="salespersonDeleteDialogVisible = false">取消</el-button>
-        <el-button type="danger" :loading="salespersonDeleteSubmitting" @click="deleteSalesperson">确认</el-button>
-      </div>
-    </el-dialog>
   </div>
 </template>
 
@@ -213,17 +152,11 @@ export default {
       submitting: false,
       passwordSubmitting: false,
       deleteSubmitting: false,
-      salespersonLoading: false,
-      salespersonSubmitting: false,
-      salespersonDeleteSubmitting: false,
       users: [],
-      salespersons: [],
       currentUser: {},
       createDialogVisible: false,
       passwordDialogVisible: false,
       deleteDialogVisible: false,
-      salespersonCreateDialogVisible: false,
-      salespersonDeleteDialogVisible: false,
       createForm: {
         username: '',
         password: '',
@@ -236,12 +169,6 @@ export default {
       },
       deleteForm: {
         userId: ''
-      },
-      salespersonCreateForm: {
-        name: ''
-      },
-      salespersonDeleteForm: {
-        salespersonId: ''
       },
       createRules: {
         username: [
@@ -268,16 +195,6 @@ export default {
       deleteRules: {
         userId: [
           { required: true, message: '请选择要删除的用户', trigger: 'change' }
-        ]
-      },
-      salespersonCreateRules: {
-        name: [
-          { required: true, message: '请输入业务员名称', trigger: 'blur' }
-        ]
-      },
-      salespersonDeleteRules: {
-        salespersonId: [
-          { required: true, message: '请选择要删除的业务员', trigger: 'change' }
         ]
       },
       currentPage: 1,
@@ -308,12 +225,21 @@ export default {
   mounted() {
     if (this.isAdmin) {
       this.getUsers()
-      this.getSalespersons()
     }
   },
   methods: {
     syncCurrentUser() {
-      this.currentUser = JSON.parse(sessionStorage.getItem('user')) || {}
+      const raw = sessionStorage.getItem('user')
+      if (!raw) {
+        this.currentUser = {}
+        return
+      }
+      try {
+        this.currentUser = JSON.parse(raw) || {}
+      } catch (error) {
+        sessionStorage.removeItem('user')
+        this.currentUser = {}
+      }
     },
     isAdminRole(role) {
       return ['admin', 'ADMIN', '管理员'].includes(role)
@@ -336,19 +262,6 @@ export default {
         })
         .finally(() => {
           this.loading = false
-        })
-    },
-    getSalespersons() {
-      this.salespersonLoading = true
-      axios.get('/salespersons')
-        .then(res => {
-          this.salespersons = this.normalizeUsers(res.data)
-        })
-        .catch(() => {
-          this.$message.error('业务员列表加载失败')
-        })
-        .finally(() => {
-          this.salespersonLoading = false
         })
     },
     openCreateDialog() {
@@ -385,26 +298,6 @@ export default {
       this.$nextTick(() => {
         if (this.$refs.deleteForm) {
           this.$refs.deleteForm.clearValidate()
-        }
-      })
-    },
-    openSalespersonCreateDialog() {
-      this.salespersonCreateDialogVisible = true
-      this.salespersonCreateForm = { name: '' }
-      this.$nextTick(() => {
-        if (this.$refs.salespersonCreateFormRef) {
-          this.$refs.salespersonCreateFormRef.clearValidate()
-        }
-      })
-    },
-    openSalespersonDeleteDialog() {
-      this.salespersonDeleteDialogVisible = true
-      this.salespersonDeleteForm = {
-        salespersonId: this.salespersons.length ? this.salespersons[0].id : ''
-      }
-      this.$nextTick(() => {
-        if (this.$refs.salespersonDeleteFormRef) {
-          this.$refs.salespersonDeleteFormRef.clearValidate()
         }
       })
     },
@@ -487,52 +380,6 @@ export default {
           })
       })
     },
-    createSalesperson() {
-      if (!this.$refs.salespersonCreateFormRef) return
-      this.$refs.salespersonCreateFormRef.validate(valid => {
-        if (!valid) return
-        this.salespersonSubmitting = true
-        axios.post('/salespersons', this.salespersonCreateForm)
-          .then(() => {
-            this.$message.success('业务员创建成功')
-            this.salespersonCreateDialogVisible = false
-            this.getSalespersons()
-          })
-          .catch(error => {
-            const serverMessage = error && error.response && error.response.data && error.response.data.msg
-            this.$message.error(serverMessage || '业务员创建失败')
-          })
-          .finally(() => {
-            this.salespersonSubmitting = false
-          })
-      })
-    },
-    deleteSalesperson() {
-      if (!this.$refs.salespersonDeleteFormRef) return
-      this.$refs.salespersonDeleteFormRef.validate(valid => {
-        if (!valid) return
-        const selected = this.salespersons.find(item => item.id === this.salespersonDeleteForm.salespersonId)
-        const name = selected ? selected.name : ''
-        this.$confirm(`确认删除业务员 ${name} 吗？`, '提示', {
-          confirmButtonText: '确认',
-          cancelButtonText: '取消',
-          type: 'warning'
-        }).then(() => {
-          this.salespersonDeleteSubmitting = true
-          return axios.delete(`/salespersons/${this.salespersonDeleteForm.salespersonId}`)
-        }).then(() => {
-          this.$message.success('业务员删除成功')
-          this.salespersonDeleteDialogVisible = false
-          this.getSalespersons()
-        }).catch(error => {
-          if (error === 'cancel' || error === 'close') return
-          const serverMessage = error && error.response && error.response.data && error.response.data.msg
-          this.$message.error(serverMessage || '业务员删除失败')
-        }).finally(() => {
-          this.salespersonDeleteSubmitting = false
-        })
-      })
-    },
     formatDate(value) {
       if (!value) return '-'
       const text = String(value)
@@ -584,10 +431,6 @@ export default {
   display: flex;
   justify-content: space-between;
   align-items: center;
-}
-
-.salesperson-card {
-  margin-top: 16px;
 }
 
 .page-tip {

@@ -14,13 +14,22 @@
         </div>
       </div>
 
-      <el-menu :default-active="$route.path" class="el-menu-vertical-demo">
-        <el-menu-item index="/dashboard" @click="$router.push('/dashboard')">首页</el-menu-item>
-        <el-menu-item v-if="['admin', 'clerk'].includes(user.role)" index="/orders" @click="$router.push('/orders')">制单</el-menu-item>
-        <el-menu-item v-if="user.role === 'admin'" index="/users" @click="$router.push('/users')">用户管理</el-menu-item>
-        <el-menu-item v-if="['admin', 'clerk'].includes(user.role)" index="/orders-management" @click="$router.push('/orders-management')">订单管理</el-menu-item>
-        <el-menu-item v-if="['admin', 'clerk'].includes(user.role)" index="/checkout-review" @click="$router.push('/checkout-review')">反结账管理</el-menu-item>
-        <el-menu-item v-if="['admin', 'clerk'].includes(user.role)" index="/draft-box" @click="$router.push('/draft-box')">草稿箱</el-menu-item>
+      <el-menu
+        :default-active="$route.path"
+        :default-openeds="defaultOpeneds"
+        class="el-menu-vertical-demo"
+        router
+      >
+        <el-menu-item index="/dashboard">首页</el-menu-item>
+        <el-menu-item v-if="['admin', 'clerk'].includes(user.role)" index="/orders">制单</el-menu-item>
+        <el-submenu v-if="user.role === 'admin'" index="user-center">
+          <template slot="title">用户管理</template>
+          <el-menu-item index="/users">制单员管理</el-menu-item>
+          <el-menu-item index="/salespersons">业务员管理</el-menu-item>
+        </el-submenu>
+        <el-menu-item v-if="['admin', 'clerk'].includes(user.role)" index="/orders-management">订单管理</el-menu-item>
+        <el-menu-item v-if="['admin', 'clerk'].includes(user.role)" index="/checkout-review">反结账管理</el-menu-item>
+        <el-menu-item v-if="['admin', 'clerk'].includes(user.role)" index="/draft-box">草稿箱</el-menu-item>
       </el-menu>
     </el-aside>
 
@@ -45,6 +54,11 @@ export default {
     },
     displayName() {
       return this.user.username || '未登录'
+    },
+    defaultOpeneds() {
+      return this.$route.path === '/users' || this.$route.path === '/salespersons'
+        ? ['user-center']
+        : []
     }
   },
   watch: {
