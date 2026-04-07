@@ -10,6 +10,7 @@
           <el-button @click="getUsers">刷新</el-button>
           <el-button type="primary" @click="openCreateDialog">新增用户</el-button>
           <el-button type="warning" @click="openPasswordDialog">修改密码</el-button>
+          <el-button type="danger" @click="openDeleteDialog">删除用户</el-button>
         </div>
       </div>
 
@@ -103,6 +104,25 @@
         <el-button type="primary" :loading="passwordSubmitting" @click="changePassword">确定</el-button>
       </div>
     </el-dialog>
+
+    <el-dialog title="删除用户" :visible.sync="deleteDialogVisible" width="460px">
+      <el-form ref="deleteForm" :model="deleteForm" :rules="deleteRules" label-width="110px">
+        <el-form-item label="选择用户" prop="userId">
+          <el-select v-model="deleteForm.userId" filterable placeholder="请选择用户" style="width: 100%">
+            <el-option
+              v-for="item in users"
+              :key="item.id"
+              :label="item.username"
+              :value="item.id"
+            />
+          </el-select>
+        </el-form-item>
+      </el-form>
+      <div slot="footer">
+        <el-button @click="deleteDialogVisible = false">取消</el-button>
+        <el-button type="danger" :loading="deleteSubmitting" @click="deleteUser">确认</el-button>
+      </div>
+    </el-dialog>
   </div>
 </template>
 
@@ -130,10 +150,12 @@ export default {
       loading: false,
       submitting: false,
       passwordSubmitting: false,
+      deleteSubmitting: false,
       users: [],
       currentUser: {},
       createDialogVisible: false,
       passwordDialogVisible: false,
+      deleteDialogVisible: false,
       createForm: {
         username: '',
         password: '',
@@ -143,6 +165,9 @@ export default {
         userId: '',
         password: '',
         confirmPassword: ''
+      },
+      deleteForm: {
+        userId: ''
       },
       createRules: {
         username: [
@@ -166,6 +191,11 @@ export default {
           { validator: validateConfirmPassword, trigger: 'blur' }
         ]
       },
+      deleteRules: {
+        userId: [
+          { required: true, message: '请选择要删除的用户', trigger: 'change' }
+        ]
+      },
       currentPage: 1,
       pageSize: 10
     }
@@ -183,6 +213,9 @@ export default {
     pagedUsers() {
       const start = (this.currentPage - 1) * this.pageSize
       return this.users.slice(start, start + this.pageSize)
+    },
+    selectedDeleteUser() {
+      return this.users.find(item => item.id === this.deleteForm.userId) || null
     }
   },
   created() {
@@ -246,6 +279,17 @@ export default {
         }
       })
     },
+    openDeleteDialog() {
+      this.deleteDialogVisible = true
+      this.deleteForm = {
+        userId: this.users.length ? this.users[0].id : ''
+      }
+      this.$nextTick(() => {
+        if (this.$refs.deleteForm) {
+          this.$refs.deleteForm.clearValidate()
+        }
+      })
+    },
     createUser() {
       if (!this.$refs.createForm) return
 
@@ -288,6 +332,40 @@ export default {
           })
           .finally(() => {
             this.passwordSubmitting = false
+          })
+      })
+    },
+    deleteUser() {
+      if (!this.$refs.deleteForm) return
+
+      this.$refs.deleteForm.validate(valid => {
+        if (!valid) return
+
+        const selectedUser = this.selectedDeleteUser
+        const username = selectedUser ? selectedUser.username : ''
+
+        this.$confirm(`确认删除${username}用户吗？`, '提示', {
+          confirmButtonText: '确认',
+          cancelButtonText: '取消',
+          type: 'warning'
+        })
+          .then(() => {
+            this.deleteSubmitting = true
+            return axios.delete(`/users/${this.deleteForm.userId}`)
+          })
+          .then(() => {
+            this.$message.success('用户删除成功')
+            this.deleteDialogVisible = false
+            this.getUsers()
+          })
+          .catch(error => {
+            if (error === 'cancel' || error === 'close') return
+
+            const serverMessage = error && error.response && error.response.data && error.response.data.msg
+            this.$message.error(serverMessage || '用户删除失败')
+          })
+          .finally(() => {
+            this.deleteSubmitting = false
           })
       })
     },
