@@ -22,10 +22,10 @@
       />
 
       <el-table
-        v-else
-        v-loading="loading"
-        :data="salespersons"
-        border
+      v-else
+      v-loading="loading"
+      :data="salespersons"
+      border
         style="width: 100%"
         empty-text="暂无业务员数据"
       >

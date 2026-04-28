@@ -18,9 +18,12 @@
       </div>
     </el-alert>
 
-    <el-form inline class="filters">
+    <el-form inline class="filters" :model="filters" @submit.native.prevent>
       <el-form-item label="客户名称">
         <el-input v-model.trim="filters.customer_name" placeholder="输入客户名称" clearable />
+      </el-form-item>
+      <el-form-item label="商品编号">
+        <el-input v-model.trim="filters.product_code" placeholder="输入商品编号" clearable />
       </el-form-item>
       <el-form-item label="下单日期">
         <el-date-picker
@@ -74,7 +77,7 @@
         <el-checkbox v-model="filters.reminder_only">仅看提醒中订单</el-checkbox>
       </el-form-item>
       <el-form-item>
-        <el-button type="primary" @click="getOrders">查询</el-button>
+        <el-button type="primary" @click="searchOrders">查询</el-button>
         <el-button @click="resetFilters">重置</el-button>
         <el-button type="success" :loading="exporting" @click="exportOrders">导出Excel</el-button>
       </el-form-item>
@@ -88,8 +91,23 @@
       @row-dblclick="viewOrder"
       @row-contextmenu="openRowContextMenu"
     >
-      <el-table-column prop="order_number" label="订单编号" min-width="150" />
-      <el-table-column prop="customer_name" label="客户名称" min-width="120" />
+      <el-table-column prop="order_number" label="订单编号" width="132" />
+      <el-table-column prop="customer_name" label="客户名称" width="118" />
+      <el-table-column prop="product_codes" label="商品编号" min-width="120" class-name="product-codes-col">
+        <template slot-scope="scope">
+          <div v-if="getProductCodeList(scope.row).length" class="product-code-list">
+            <div
+              v-for="code in getProductCodeList(scope.row).slice(0, 3)"
+              :key="code"
+              class="product-code-line"
+            >
+              {{ code }}
+            </div>
+            <div v-if="getProductCodeList(scope.row).length > 3" class="product-code-line">...</div>
+          </div>
+          <span v-else>-</span>
+        </template>
+      </el-table-column>
       <el-table-column prop="order_clerk" label="制单员" width="100">
         <template slot-scope="scope">
           {{ scope.row.order_clerk || scope.row.clerk_name || '-' }}
@@ -103,12 +121,14 @@
       </el-table-column>
       <el-table-column label="结账状态" width="140">
         <template slot-scope="scope">
-          <el-tag :type="scope.row.settlement_status === '未结账' ? 'danger' : 'success'" size="mini">
-            {{ scope.row.settlement_status || '已结账' }}
-          </el-tag>
-          <el-tag v-if="scope.row.need_settlement_remind" type="warning" size="mini" class="inline-tag">
-            提醒中
-          </el-tag>
+          <div class="settlement-status-cell">
+            <el-tag :type="scope.row.settlement_status === '未结账' ? 'danger' : 'success'" size="mini">
+              {{ scope.row.settlement_status || '已结账' }}
+            </el-tag>
+            <el-tag v-if="scope.row.need_settlement_remind" type="warning" size="mini" class="reminder-tag">
+              提醒中
+            </el-tag>
+          </div>
         </template>
       </el-table-column>
       <el-table-column label="结账方式" min-width="110">
@@ -212,6 +232,7 @@ import OrdersView from '../components/OrdersView.vue'
 function createDefaultFilters() {
   return {
     customer_name: '',
+    product_code: '',
     start_date: '',
     end_date: '',
     clerk_id: null,
@@ -221,6 +242,213 @@ function createDefaultFilters() {
     payment_method: '',
     reminder_only: false
   }
+}
+
+function escapeXml(value) {
+  const text = value === null || value === undefined ? '' : String(value)
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;')
+}
+
+function columnName(index) {
+  let name = ''
+  let value = index + 1
+  while (value > 0) {
+    const remainder = (value - 1) % 26
+    name = String.fromCharCode(65 + remainder) + name
+    value = Math.floor((value - 1) / 26)
+  }
+  return name
+}
+
+function makeCrcTable() {
+  const table = []
+  for (let i = 0; i < 256; i += 1) {
+    let c = i
+    for (let j = 0; j < 8; j += 1) {
+      c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1
+    }
+    table[i] = c >>> 0
+  }
+  return table
+}
+
+const crcTable = makeCrcTable()
+
+function crc32(bytes) {
+  let crc = 0xffffffff
+  for (let i = 0; i < bytes.length; i += 1) {
+    crc = crcTable[(crc ^ bytes[i]) & 0xff] ^ (crc >>> 8)
+  }
+  return (crc ^ 0xffffffff) >>> 0
+}
+
+function uint16(value) {
+  return [value & 0xff, (value >>> 8) & 0xff]
+}
+
+function uint32(value) {
+  return [
+    value & 0xff,
+    (value >>> 8) & 0xff,
+    (value >>> 16) & 0xff,
+    (value >>> 24) & 0xff
+  ]
+}
+
+function dosDateTime(date) {
+  const year = Math.max(date.getFullYear(), 1980)
+  const time = (date.getHours() << 11) | (date.getMinutes() << 5) | Math.floor(date.getSeconds() / 2)
+  const day = ((year - 1980) << 9) | ((date.getMonth() + 1) << 5) | date.getDate()
+  return { time, day }
+}
+
+function concatBytes(parts) {
+  const size = parts.reduce((sum, part) => sum + part.length, 0)
+  const bytes = new Uint8Array(size)
+  let offset = 0
+  parts.forEach(part => {
+    bytes.set(part, offset)
+    offset += part.length
+  })
+  return bytes
+}
+
+function createZip(files) {
+  const encoder = new TextEncoder()
+  const now = dosDateTime(new Date())
+  const localParts = []
+  const centralParts = []
+  let offset = 0
+
+  files.forEach(file => {
+    const nameBytes = encoder.encode(file.name)
+    const dataBytes = encoder.encode(file.content)
+    const crc = crc32(dataBytes)
+    const localHeader = new Uint8Array([
+      ...uint32(0x04034b50),
+      ...uint16(20),
+      ...uint16(0x0800),
+      ...uint16(0),
+      ...uint16(now.time),
+      ...uint16(now.day),
+      ...uint32(crc),
+      ...uint32(dataBytes.length),
+      ...uint32(dataBytes.length),
+      ...uint16(nameBytes.length),
+      ...uint16(0)
+    ])
+    localParts.push(localHeader, nameBytes, dataBytes)
+
+    const centralHeader = new Uint8Array([
+      ...uint32(0x02014b50),
+      ...uint16(20),
+      ...uint16(20),
+      ...uint16(0x0800),
+      ...uint16(0),
+      ...uint16(now.time),
+      ...uint16(now.day),
+      ...uint32(crc),
+      ...uint32(dataBytes.length),
+      ...uint32(dataBytes.length),
+      ...uint16(nameBytes.length),
+      ...uint16(0),
+      ...uint16(0),
+      ...uint16(0),
+      ...uint16(0),
+      ...uint32(0),
+      ...uint32(offset)
+    ])
+    centralParts.push(centralHeader, nameBytes)
+    offset += localHeader.length + nameBytes.length + dataBytes.length
+  })
+
+  const centralDirectory = concatBytes(centralParts)
+  const endRecord = new Uint8Array([
+    ...uint32(0x06054b50),
+    ...uint16(0),
+    ...uint16(0),
+    ...uint16(files.length),
+    ...uint16(files.length),
+    ...uint32(centralDirectory.length),
+    ...uint32(offset),
+    ...uint16(0)
+  ])
+
+  return concatBytes(localParts.concat([centralDirectory, endRecord]))
+}
+
+function createXlsx(rows, colWidths) {
+  const rowXml = rows.map((row, rowIndex) => {
+    const cells = row.map((value, colIndex) => {
+      const ref = `${columnName(colIndex)}${rowIndex + 1}`
+      return `<c r="${ref}" t="inlineStr" s="1"><is><t>${escapeXml(value)}</t></is></c>`
+    }).join('')
+    return `<row r="${rowIndex + 1}">${cells}</row>`
+  }).join('')
+  const colsXml = colWidths.map((width, index) => {
+    return `<col min="${index + 1}" max="${index + 1}" width="${width}" customWidth="1"/>`
+  }).join('')
+  const lastCell = `${columnName((rows[0] || []).length - 1)}${Math.max(rows.length, 1)}`
+
+  const worksheet = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <dimension ref="A1:${lastCell}"/>
+  <cols>${colsXml}</cols>
+  <sheetData>${rowXml}</sheetData>
+</worksheet>`
+
+  return createZip([
+    {
+      name: '[Content_Types].xml',
+      content: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
+  <Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
+  <Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>
+</Types>`
+    },
+    {
+      name: '_rels/.rels',
+      content: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>
+</Relationships>`
+    },
+    {
+      name: 'xl/workbook.xml',
+      content: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <sheets><sheet name="订单导出" sheetId="1" r:id="rId1"/></sheets>
+</workbook>`
+    },
+    {
+      name: 'xl/_rels/workbook.xml.rels',
+      content: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>
+  <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+</Relationships>`
+    },
+    {
+      name: 'xl/styles.xml',
+      content: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <fonts count="2"><font/><font><sz val="12"/><name val="SimSun"/></font></fonts>
+  <fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills>
+  <borders count="2"><border/><border><left style="thin"/><right style="thin"/><top style="thin"/><bottom style="thin"/></border></borders>
+  <cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
+  <cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/><xf numFmtId="49" fontId="1" fillId="0" borderId="1" applyNumberFormat="1" applyFont="1" applyBorder="1"/></cellXfs>
+</styleSheet>`
+    },
+    { name: 'xl/worksheets/sheet1.xml', content: worksheet }
+  ])
 }
 
 export default {
@@ -292,6 +520,13 @@ export default {
     formatAmount(value) {
       return Number(value || 0).toFixed(2)
     },
+    getProductCodeList(row) {
+      const text = row && row.product_codes ? String(row.product_codes) : ''
+      return text
+        .split(/[,，、\n\r]+/)
+        .map(item => item.trim())
+        .filter(Boolean)
+    },
     formatCompactDate(value) {
       if (!value) return '-'
       const text = String(value)
@@ -321,9 +556,15 @@ export default {
     },
     buildParams(sourceFilters) {
       const params = { ...sourceFilters }
+      params.product_code = String(params.product_code || '').trim()
       if (!this.isAdmin) {
         params.clerk_id = this.currentUser.id
       }
+      Object.keys(params).forEach(key => {
+        if (params[key] === '' || params[key] === null || params[key] === undefined) {
+          delete params[key]
+        }
+      })
       return params
     },
     normalizeOrders(list) {
@@ -353,6 +594,12 @@ export default {
         .finally(() => {
           this.loading = false
         })
+    },
+    searchOrders() {
+      this.currentPage = 1
+      this.$nextTick(() => {
+        this.getOrders()
+      })
     },
     getReminderOrders() {
       const params = this.buildParams({
@@ -452,54 +699,97 @@ export default {
     handlePageChange(page) {
       this.currentPage = page
     },
-    normalizeCsvCell(value) {
-      const text = value === null || value === undefined ? '' : String(value)
-      const escaped = text.replace(/"/g, '""')
-      return `"${escaped}"`
-    },
-    buildExportCsv() {
+    buildExportWorkbook(orderDetails) {
       const headers = [
         '订单编号',
+        '日期',
+        '业务员名称',
         '客户名称',
-        '制单员',
-        '业务员',
-        '下单日期',
-        '结账状态',
-        '结账方式',
-        '总金额(元)',
-        '发货状态',
+        '商品名称',
+        '商品编码/颜色',
+        '容量',
+        '数量',
+        '单价',
+        '运费',
+        '折扣',
+        '金额',
+        '订单总金额',
+        '收件人',
+        '收件地址',
+        '是否发货',
         '运单号',
-        '备注'
+        '是否结账',
+        '结账方式'
       ]
 
-      const rows = this.orders.map(item => ([
-        item.order_number || '',
-        item.customer_name || '',
-        item.order_clerk || item.clerk_name || '',
-        item.salesperson || '',
-        this.formatCompactDate(item.order_date),
-        item.settlement_status || '',
-        item.payment_method || (item.settlement_status === '未结账' ? '未结账' : ''),
-        this.formatAmount(item.total_amount),
-        item.shipping_status || '',
-        item.tracking_number || '',
-        item.remark || ''
-      ]))
+      const rows = []
+      orderDetails.forEach(order => {
+        const items = order.items && order.items.length ? order.items : [{}]
+        items.forEach(item => {
+          rows.push([
+            order.order_number || '',
+            this.formatCompactDate(order.order_date),
+            order.salesperson || '',
+            order.customer_name || '',
+            item.product_name || '',
+            [item.product_code, item.color].filter(Boolean).join('/'),
+            item.capacity || '',
+            item.quantity || '',
+            item.unit_price === null || item.unit_price === undefined ? '' : this.formatAmount(item.unit_price),
+            this.formatAmount(order.shipping_fee),
+            this.formatAmount(order.discount_amount),
+            item.amount === null || item.amount === undefined ? '' : this.formatAmount(item.amount),
+            this.formatAmount(order.total_amount),
+            order.recipient_name || order.customer_name || '',
+            order.recipient_address || '',
+            order.shipping_status === '已发货' ? '是' : '否',
+            order.tracking_number || '',
+            order.settlement_status === '已结账' ? '是' : '否',
+            order.payment_method || (order.settlement_status === '未结账' ? '未结账' : '')
+          ])
+        })
+      })
 
-      const lines = [headers, ...rows]
-        .map(cols => cols.map(this.normalizeCsvCell).join(','))
-        .join('\r\n')
-      return `\uFEFF${lines}`
+      return createXlsx([headers].concat(rows), [
+        18,
+        12,
+        12,
+        16,
+        22,
+        18,
+        10,
+        8,
+        10,
+        10,
+        10,
+        10,
+        12,
+        14,
+        34,
+        10,
+        18,
+        10,
+        14
+      ])
     },
-    saveCsvWithPicker(content, filename) {
+    fetchExportOrders() {
+      return Promise.all(this.orders.map(order => {
+        return axios.get(`/orders/${order.id}`)
+          .then(res => res.data || order)
+          .catch(() => order)
+      }))
+    },
+    saveExcelWithPicker(content, filename) {
       if (!window.showSaveFilePicker) return Promise.resolve(false)
 
       return window.showSaveFilePicker({
         suggestedName: filename,
         types: [
           {
-            description: 'Excel CSV',
-            accept: { 'text/csv': ['.csv'] }
+            description: 'Excel 文件',
+            accept: {
+              'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx']
+            }
           }
         ]
       }).then(handle => {
@@ -511,8 +801,10 @@ export default {
           })
       })
     },
-    downloadCsv(content, filename) {
-      const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' })
+    downloadExcel(content, filename) {
+      const blob = new Blob([content], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      })
       const link = document.createElement('a')
       link.href = URL.createObjectURL(blob)
       link.download = filename
@@ -528,7 +820,6 @@ export default {
       }
       this.exporting = true
 
-      const csv = this.buildExportCsv()
       const now = new Date()
       const yyyy = now.getFullYear()
       const mm = `${now.getMonth() + 1}`.padStart(2, '0')
@@ -536,18 +827,23 @@ export default {
       const hh = `${now.getHours()}`.padStart(2, '0')
       const mi = `${now.getMinutes()}`.padStart(2, '0')
       const ss = `${now.getSeconds()}`.padStart(2, '0')
-      const filename = `订单导出_${yyyy}${mm}${dd}_${hh}${mi}${ss}.csv`
+      const filename = `订单导出_${yyyy}${mm}${dd}_${hh}${mi}${ss}.xlsx`
 
-      this.saveCsvWithPicker(csv, filename)
-        .then(savedByPicker => {
+      this.fetchExportOrders()
+        .then(orderDetails => {
+          const excel = this.buildExportWorkbook(orderDetails)
+          return this.saveExcelWithPicker(excel, filename)
+            .then(savedByPicker => ({ savedByPicker, excel }))
+            .catch(() => ({ savedByPicker: false, excel }))
+        })
+        .then(({ savedByPicker, excel }) => {
           if (!savedByPicker) {
-            this.downloadCsv(csv, filename)
+            this.downloadExcel(excel, filename)
           }
           this.$message.success('导出成功')
         })
         .catch(() => {
-          this.downloadCsv(csv, filename)
-          this.$message.success('导出成功')
+          this.$message.error('导出失败')
         })
         .finally(() => {
           this.exporting = false
@@ -597,8 +893,15 @@ export default {
   font-size: 13px;
 }
 
-.inline-tag {
-  margin-left: 6px;
+.settlement-status-cell {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.reminder-tag {
+  margin-left: 0;
 }
 
 .pagination-wrap {
@@ -654,6 +957,25 @@ export default {
 
 .orders-management .shipping-col .cell {
   white-space: nowrap;
+}
+
+.orders-management .product-codes-col .cell {
+  white-space: normal !important;
+  line-height: 20px;
+}
+
+.orders-management .product-code-list {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  max-width: 100%;
+}
+
+.orders-management .product-code-line {
+  max-width: 100%;
+  white-space: normal !important;
+  overflow-wrap: anywhere;
+  word-break: break-all;
 }
 </style>
 

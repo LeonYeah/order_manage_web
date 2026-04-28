@@ -18,8 +18,18 @@
             <el-input v-model.trim="draft.recipient_name" size="small" style="width: 120px" />
           </div>
           <div class="meta-item">
+            电话号码：
+            <el-input v-model.trim="draft.customer_phone" size="small" style="width: 130px" />
+          </div>
+          <div class="meta-item address-item">
             收货地址：
-            <el-input v-model.trim="draft.recipient_address" size="small" style="width: 220px" />
+            <el-input
+              v-model.trim="draft.recipient_address"
+              type="textarea"
+              :autosize="{ minRows: 1, maxRows: 3 }"
+              size="small"
+              class="address-input"
+            />
           </div>
           <div class="meta-item order-date-item">
             下单日期：
@@ -60,31 +70,28 @@
       </div>
 
       <el-table :data="items" class="detail-table" style="width: 100%" border>
-        <el-table-column type="index" label="序号" width="48" />
-        <el-table-column label="商品编号/颜色" min-width="140">
+        <el-table-column type="index" label="序号" width="60" />
+        <el-table-column label="商品编号/颜色" min-width="210">
           <template slot-scope="scope">
-            <div class="code-color-cell">
-              <el-input v-model.trim="scope.row.product_code" size="small" placeholder="商品编号" />
-              <el-input v-model.trim="scope.row.color" size="small" placeholder="颜色" />
-            </div>
+            <el-input
+              :value="getCodeColorValue(scope.row)"
+              size="small"
+              placeholder="商品编号/颜色"
+              @input="setCodeColorValue(scope.row, $event)"
+            />
           </template>
         </el-table-column>
-        <el-table-column label="商品名称" min-width="150">
+        <el-table-column label="商品名称" min-width="230">
           <template slot-scope="scope">
             <el-input v-model.trim="scope.row.product_name" class="full-width" size="small" placeholder="手动输入商品名称" />
           </template>
         </el-table-column>
-        <el-table-column label="英文名称" min-width="108">
-          <template slot-scope="scope">
-            <el-input v-model.trim="scope.row.english_name" size="small" placeholder="英文名称" />
-          </template>
-        </el-table-column>
-        <el-table-column label="容量" width="80">
+        <el-table-column label="容量" min-width="140">
           <template slot-scope="scope">
             <el-input v-model.trim="scope.row.capacity" size="small" placeholder="容量" />
           </template>
         </el-table-column>
-        <el-table-column label="数量" width="118">
+        <el-table-column label="数量" min-width="180">
           <template slot-scope="scope">
             <el-input-number
               v-model="scope.row.quantity"
@@ -94,7 +101,7 @@
             />
           </template>
         </el-table-column>
-        <el-table-column label="单价(元)" width="110">
+        <el-table-column label="单价(元)" min-width="190">
           <template slot-scope="scope">
             <el-input-number
               v-model="scope.row.unit_price"
@@ -107,7 +114,7 @@
             />
           </template>
         </el-table-column>
-        <el-table-column label="金额(元)" width="110">
+        <el-table-column label="金额(元)" min-width="190">
           <template slot-scope="scope">
             <el-input-number
               v-model="scope.row.amount"
@@ -120,7 +127,7 @@
             />
           </template>
         </el-table-column>
-        <el-table-column label="来样日期" width="152">
+        <el-table-column label="来样日期" min-width="230">
           <template slot-scope="scope">
             <el-date-picker
               v-model="scope.row.sample_date"
@@ -133,7 +140,7 @@
             />
           </template>
         </el-table-column>
-        <el-table-column label="备注" min-width="150">
+        <el-table-column label="备注" min-width="210">
           <template slot-scope="scope">
             <el-input v-model.trim="scope.row.remark" size="small" placeholder="备注" />
           </template>
@@ -199,6 +206,7 @@ function createEmptyItem() {
     product_id: null,
     product_name: '',
     product_code: '',
+    code_color: '',
     english_name: '',
     capacity: '',
     color: '',
@@ -263,6 +271,7 @@ export default {
             product_id: item.product_id,
             product_name: item.product_name || '',
             product_code: item.product_code || '',
+            code_color: [item.product_code, item.color].filter(Boolean).join('/'),
             english_name: item.english_name || '',
             capacity: item.capacity || '',
             color: item.color || '',
@@ -281,6 +290,7 @@ export default {
             discount_amount: Number(res.data.discount_amount || 0),
             total_amount: Number(res.data.total_amount || 0),
             salesperson: res.data.salesperson || '',
+            customer_phone: res.data.customer_phone || '',
             recipient_name: res.data.recipient_name || res.data.customer_name || '',
             recipient_address: res.data.recipient_address || '',
             remark: res.data.remark || ''
@@ -298,6 +308,36 @@ export default {
     removeItem(index) {
       this.items.splice(index, 1)
       this.updateTotal()
+    },
+    getCodeColorValue(row) {
+      if (row.code_color !== undefined) return row.code_color
+
+      const productCode = String(row.product_code || '').trim()
+      const color = String(row.color || '').trim()
+      return [productCode, color].filter(Boolean).join('/')
+    },
+    setCodeColorValue(row, value) {
+      const text = String(value || '')
+      this.$set(row, 'code_color', text)
+      const parsed = this.parseCodeColorValue(text)
+      row.product_code = parsed.product_code
+      row.color = parsed.color
+    },
+    parseCodeColorValue(value) {
+      const text = String(value || '').trim()
+      const separatorIndex = text.search(/[\/／]/)
+
+      if (separatorIndex === -1) {
+        return {
+          product_code: text,
+          color: ''
+        }
+      }
+
+      return {
+        product_code: text.slice(0, separatorIndex).trim(),
+        color: text.slice(separatorIndex + 1).trim()
+      }
     },
     updateAmountFromUnitPrice(row) {
       row.amount = Number((Number(row.quantity || 0) * Number(row.unit_price || 0)).toFixed(2))
@@ -345,6 +385,7 @@ export default {
       this.updateTotal()
       return {
         customer_name: this.draft.customer_name,
+        customer_phone: this.draft.customer_phone || '',
         salesperson: this.draft.salesperson || '',
         recipient_name: this.draft.recipient_name || this.draft.customer_name,
         recipient_address: this.draft.recipient_address || '',
@@ -355,19 +396,22 @@ export default {
         settlement_status: this.draft.settlement_status,
         payment_method: this.draft.settlement_status === '已结账' ? this.draft.payment_method : '',
         remark: this.draft.remark || '',
-        items: this.items.map(item => ({
-          product_id: item.product_id || null,
-          product_name: item.product_name || '',
-          product_code: item.product_code || '',
-          english_name: item.english_name || '',
-          capacity: item.capacity || '',
-          quantity: Number(item.quantity || 0),
-          unit_price: Number(item.unit_price || 0),
-          amount: Number(item.amount || 0),
-          color: item.color || '',
-          sample_date: this.normalizeDate(item.sample_date) || null,
-          remark: item.remark || ''
-        }))
+        items: this.items.map(item => {
+          const codeColor = this.parseCodeColorValue(this.getCodeColorValue(item))
+          return {
+            product_id: item.product_id || null,
+            product_name: item.product_name || '',
+            product_code: codeColor.product_code,
+            english_name: item.english_name || '',
+            capacity: item.capacity || '',
+            quantity: Number(item.quantity || 0),
+            unit_price: Number(item.unit_price || 0),
+            amount: Number(item.amount || 0),
+            color: codeColor.color,
+            sample_date: this.normalizeDate(item.sample_date) || null,
+            remark: item.remark || ''
+          }
+        })
       }
     },
     saveDraft() {
@@ -406,6 +450,18 @@ export default {
   display: flex;
   align-items: center;
   font-size: 14px;
+  white-space: nowrap;
+}
+
+.address-item {
+  flex: 1 1 420px;
+  align-items: center;
+}
+
+.address-input {
+  flex: 1;
+  min-width: 260px;
+  white-space: normal;
 }
 
 .order-date-item {
@@ -458,14 +514,6 @@ export default {
   width: 100%;
 }
 
-.code-color-cell {
-  display: flex;
-  gap: 8px;
-}
-
-.code-color-cell .el-input {
-  flex: 1;
-}
 </style>
 
 <style>

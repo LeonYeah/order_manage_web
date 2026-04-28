@@ -42,7 +42,7 @@
       </el-alert>
 
       <div v-if="isAdmin">
-        <p class="dashboard-desc">当前为管理员视图，可管理用户和全部订单。</p>
+        <p class="dashboard-desc">当前为管理员视图,可管理用户和全部订单。</p>
         <div class="action-list">
           <el-button type="primary" @click="$router.push('/users')">进入用户管理</el-button>
           <el-button @click="$router.push('/orders-management')">进入订单管理</el-button>

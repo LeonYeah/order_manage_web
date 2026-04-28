@@ -23,10 +23,10 @@
       />
 
       <el-table
-        v-else
-        v-loading="loading"
-        :data="pagedUsers"
-        border
+      v-else
+      v-loading="loading"
+      :data="pagedUsers"
+      border
         style="width: 100%"
         empty-text="暂无用户数据"
       >

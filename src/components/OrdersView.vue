@@ -14,8 +14,19 @@
             <el-input v-model.trim="order.recipient_name" size="small" style="width: 120px" :disabled="isSettledLocked" />
           </div>
           <div class="meta-item">
+            电话号码：
+            <el-input v-model.trim="order.customer_phone" size="small" style="width: 130px" :disabled="isSettledLocked" />
+          </div>
+          <div class="meta-item address-item">
             收件地址：
-            <el-input v-model.trim="order.recipient_address" size="small" style="width: 220px" :disabled="isSettledLocked" />
+            <el-input
+              v-model.trim="order.recipient_address"
+              type="textarea"
+              :autosize="{ minRows: 1, maxRows: 3 }"
+              size="small"
+              class="address-input"
+              :disabled="isSettledLocked"
+            />
           </div>
           <div class="meta-item order-date-item">
             下单日期：
@@ -67,31 +78,29 @@
       </div>
 
       <el-table :data="items" class="detail-table" style="width: 100%" border>
-        <el-table-column type="index" label="序号" width="48" />
-        <el-table-column label="商品编号/颜色" min-width="140">
+        <el-table-column type="index" label="序号" width="60" />
+        <el-table-column label="商品编号/颜色" min-width="210">
           <template slot-scope="scope">
-            <div class="code-color-cell">
-              <el-input v-model.trim="scope.row.product_code" size="small" placeholder="商品编号" :disabled="isSettledLocked" />
-              <el-input v-model.trim="scope.row.color" size="small" placeholder="颜色" :disabled="isSettledLocked" />
-            </div>
+            <el-input
+              :value="getCodeColorValue(scope.row)"
+              size="small"
+              placeholder="商品编号/颜色"
+              :disabled="isSettledLocked"
+              @input="setCodeColorValue(scope.row, $event)"
+            />
           </template>
         </el-table-column>
-        <el-table-column label="商品名称" min-width="150">
+        <el-table-column label="商品名称" min-width="230">
           <template slot-scope="scope">
             <el-input v-model.trim="scope.row.product_name" class="full-width" size="small" placeholder="手动输入商品名称" :disabled="isSettledLocked" />
           </template>
         </el-table-column>
-        <el-table-column label="英文名称" min-width="108">
-          <template slot-scope="scope">
-            <el-input v-model.trim="scope.row.english_name" size="small" placeholder="英文名称" :disabled="isSettledLocked" />
-          </template>
-        </el-table-column>
-        <el-table-column label="容量" width="80">
+        <el-table-column label="容量" min-width="140">
           <template slot-scope="scope">
             <el-input v-model.trim="scope.row.capacity" size="small" placeholder="容量" :disabled="isSettledLocked" />
           </template>
         </el-table-column>
-        <el-table-column label="数量" width="118">
+        <el-table-column label="数量" min-width="180">
           <template slot-scope="scope">
             <el-input-number
               v-model="scope.row.quantity"
@@ -102,7 +111,7 @@
             />
           </template>
         </el-table-column>
-        <el-table-column label="单价(元)" width="110">
+        <el-table-column label="单价(元)" min-width="190">
           <template slot-scope="scope">
             <el-input-number
               v-model="scope.row.unit_price"
@@ -116,7 +125,7 @@
             />
           </template>
         </el-table-column>
-        <el-table-column label="金额(元)" width="110">
+        <el-table-column label="金额(元)" min-width="190">
           <template slot-scope="scope">
             <el-input-number
               v-model="scope.row.amount"
@@ -130,7 +139,7 @@
             />
           </template>
         </el-table-column>
-        <el-table-column label="来样日期" width="152">
+        <el-table-column label="来样日期" min-width="230">
           <template slot-scope="scope">
             <el-date-picker
               v-model="scope.row.sample_date"
@@ -144,7 +153,7 @@
             />
           </template>
         </el-table-column>
-        <el-table-column label="备注" min-width="150">
+        <el-table-column label="备注" min-width="210">
           <template slot-scope="scope">
             <el-input v-model.trim="scope.row.remark" size="small" placeholder="备注" :disabled="isSettledLocked" />
           </template>
@@ -226,6 +235,7 @@ function createEmptyItem() {
     product_id: null,
     product_name: '',
     product_code: '',
+    code_color: '',
     english_name: '',
     capacity: '',
     color: '',
@@ -311,6 +321,7 @@ export default {
             product_id: item.product_id,
             product_name: item.product_name || '',
             product_code: item.product_code,
+            code_color: [item.product_code, item.color].filter(Boolean).join('/'),
             english_name: item.english_name,
             capacity: item.capacity,
             color: item.color || '',
@@ -331,6 +342,7 @@ export default {
             shipping_fee: Number(res.data.shipping_fee || 0),
             discount_amount: Number(res.data.discount_amount || 0),
             total_amount: Number(res.data.total_amount || 0),
+            customer_phone: res.data.customer_phone || '',
             recipient_name: res.data.recipient_name || res.data.customer_name || '',
             recipient_address: res.data.recipient_address || '',
             salesperson: res.data.salesperson || '',
@@ -350,6 +362,36 @@ export default {
     removeItem(index) {
       this.items.splice(index, 1)
       this.updateTotal()
+    },
+    getCodeColorValue(row) {
+      if (row.code_color !== undefined) return row.code_color
+
+      const productCode = String(row.product_code || '').trim()
+      const color = String(row.color || '').trim()
+      return [productCode, color].filter(Boolean).join('/')
+    },
+    setCodeColorValue(row, value) {
+      const text = String(value || '')
+      this.$set(row, 'code_color', text)
+      const parsed = this.parseCodeColorValue(text)
+      row.product_code = parsed.product_code
+      row.color = parsed.color
+    },
+    parseCodeColorValue(value) {
+      const text = String(value || '').trim()
+      const separatorIndex = text.search(/[\/／]/)
+
+      if (separatorIndex === -1) {
+        return {
+          product_code: text,
+          color: ''
+        }
+      }
+
+      return {
+        product_code: text.slice(0, separatorIndex).trim(),
+        color: text.slice(separatorIndex + 1).trim()
+      }
     },
     updateAmountFromUnitPrice(row) {
       row.amount = Number((Number(row.quantity || 0) * Number(row.unit_price || 0)).toFixed(2))
@@ -401,6 +443,7 @@ export default {
       this.updateTotal()
       return {
         customer_name: this.order.customer_name,
+        customer_phone: this.order.customer_phone || '',
         recipient_name: this.order.recipient_name || this.order.customer_name,
         recipient_address: this.order.recipient_address || '',
         salesperson: this.order.salesperson || '',
@@ -413,19 +456,22 @@ export default {
         discount_amount: Number(this.order.discount_amount || 0),
         total_amount: Number(this.order.total_amount || 0),
         remark: this.order.remark || '',
-        items: this.items.map(item => ({
-          product_id: item.product_id || null,
-          product_name: item.product_name || '',
-          product_code: item.product_code || '',
-          english_name: item.english_name || '',
-          capacity: item.capacity || '',
-          quantity: Number(item.quantity || 0),
-          unit_price: Number(item.unit_price || 0),
-          amount: Number(item.amount || 0),
-          color: item.color || '',
-          sample_date: this.normalizeDate(item.sample_date) || null,
-          remark: item.remark || ''
-        }))
+        items: this.items.map(item => {
+          const codeColor = this.parseCodeColorValue(this.getCodeColorValue(item))
+          return {
+            product_id: item.product_id || null,
+            product_name: item.product_name || '',
+            product_code: codeColor.product_code,
+            english_name: item.english_name || '',
+            capacity: item.capacity || '',
+            quantity: Number(item.quantity || 0),
+            unit_price: Number(item.unit_price || 0),
+            amount: Number(item.amount || 0),
+            color: codeColor.color,
+            sample_date: this.normalizeDate(item.sample_date) || null,
+            remark: item.remark || ''
+          }
+        })
       }
     },
     saveOrder() {
@@ -491,13 +537,18 @@ export default {
           <td>${index + 1}</td>
           <td>${this.printCell([item.product_code, item.color].filter(Boolean).join('/'))}</td>
           <td>${this.printCell(this.getProductName(item))}</td>
-          <td>${this.printCell(item.english_name)}</td>
           <td>${this.printCell(item.capacity)}</td>
           <td>${this.printCell(item.quantity)}</td>
           <td>${this.printCell(this.compactDate(item.sample_date))}</td>
           <td>${this.printCell(item.remark)}</td>
         </tr>
       `).join('')
+      const orderRemarkRow = `
+        <tr>
+          <td class="order-remark-label" colspan="2">订单备注</td>
+          <td class="order-remark-content" colspan="5">${this.printCell(this.order.remark)}</td>
+        </tr>
+      `
 
       const copySection = `
         <section class="copy">
@@ -506,22 +557,21 @@ export default {
             <div>订单编号：${this.printCell(this.order.order_number)}</div>
             <div>下单日期：${this.printCell(this.compactDate(this.order.order_date))}</div>
             <div>收件人：${this.printCell(this.order.recipient_name || this.order.customer_name)}</div>
-            <div>收货地址：${this.printCell(this.maskPhoneForPrint(this.order.recipient_address))}</div>
+            <div class="address-line">收货地址：${this.printCell(this.maskPhoneForPrint(this.order.recipient_address))}</div>
           </div>
           <table>
             <thead>
               <tr>
                 <th style="width:4%">序号</th>
-                <th style="width:12%">商品编号/颜色</th>
-                <th style="width:12%">商品名称</th>
-                <th style="width:12%">英文名称</th>
+                <th style="width:14%">商品编号/颜色</th>
+                <th style="width:16%">商品名称</th>
                 <th style="width:10%">容量</th>
                 <th style="width:8%">数量</th>
                 <th style="width:14%">来样日期</th>
-                <th style="width:28%">备注</th>
+                <th style="width:34%">备注</th>
               </tr>
             </thead>
-            <tbody>${rows || '<tr><td colspan="8">/</td></tr>'}</tbody>
+            <tbody>${rows || '<tr><td colspan="7">/</td></tr>'}${orderRemarkRow}</tbody>
           </table>
         </section>
       `
@@ -540,9 +590,13 @@ export default {
             .copy-sep { border-top: 1px dashed #666; margin: 2mm 0; }
             .title { text-align: center; font-size: 14px; font-weight: 700; margin-bottom: 6px; }
             .meta { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-bottom: 6px; font-size: 10px; }
+            .meta > div { max-width: 100%; }
+            .address-line { flex-basis: 100%; white-space: normal; overflow-wrap: anywhere; word-break: break-all; line-height: 1.25; }
             table { width: 100%; border-collapse: collapse; table-layout: fixed; }
             th, td { border: 1px solid #333; padding: 2px 2px; font-size: 9px; text-align: center; word-break: break-all; line-height: 1.2; }
             thead th { background: #f3f3f3; font-weight: 600; }
+            .order-remark-label { font-weight: 600; background: #f3f3f3; }
+            .order-remark-content { text-align: left; padding-left: 4px; }
           </style>
         </head>
         <body>
@@ -587,6 +641,18 @@ export default {
   display: flex;
   align-items: center;
   font-size: 14px;
+  white-space: nowrap;
+}
+
+.address-item {
+  flex: 1 1 420px;
+  align-items: center;
+}
+
+.address-input {
+  flex: 1;
+  min-width: 260px;
+  white-space: normal;
 }
 
 .order-date-item {
@@ -643,15 +709,6 @@ export default {
 
 .full-width {
   width: 100%;
-}
-
-.code-color-cell {
-  display: flex;
-  gap: 8px;
-}
-
-.code-color-cell .el-input {
-  flex: 1;
 }
 
 .el-table .cell {
