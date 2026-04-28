@@ -49,7 +49,9 @@
         </el-select>
       </el-form-item>
       <el-form-item label="业务员">
-        <el-input v-model.trim="filters.salesperson" placeholder="输入业务员" clearable />
+        <el-select v-model="filters.salesperson" filterable clearable placeholder="选择业务员">
+          <el-option v-for="item in salespersons" :key="item.id" :label="item.name" :value="item.name" />
+        </el-select>
       </el-form-item>
       <el-form-item label="发货状态">
         <el-select v-model="filters.shipping_status" placeholder="全部状态" clearable>
@@ -93,7 +95,7 @@
     >
       <el-table-column prop="order_number" label="订单编号" width="132" />
       <el-table-column prop="customer_name" label="客户名称" width="118" />
-      <el-table-column prop="product_codes" label="商品编号" min-width="120" class-name="product-codes-col">
+      <el-table-column prop="product_codes" label="商品编号/颜色" min-width="100" class-name="product-codes-col">
         <template slot-scope="scope">
           <div v-if="getProductCodeList(scope.row).length" class="product-code-list">
             <div
@@ -108,18 +110,18 @@
           <span v-else>-</span>
         </template>
       </el-table-column>
-      <el-table-column prop="order_clerk" label="制单员" width="100">
+      <el-table-column prop="order_clerk" label="制单员" width="120">
         <template slot-scope="scope">
           {{ scope.row.order_clerk || scope.row.clerk_name || '-' }}
         </template>
       </el-table-column>
-      <el-table-column prop="salesperson" label="业务员" width="100" />
-      <el-table-column label="下单日期" width="96">
+      <el-table-column prop="salesperson" label="业务员" width="120" />
+      <el-table-column label="下单日期" width="120">
         <template slot-scope="scope">
           {{ formatCompactDate(scope.row.order_date) }}
         </template>
       </el-table-column>
-      <el-table-column label="结账状态" width="140">
+      <el-table-column label="结账状态" width="144">
         <template slot-scope="scope">
           <div class="settlement-status-cell">
             <el-tag :type="scope.row.settlement_status === '未结账' ? 'danger' : 'success'" size="mini">
@@ -131,17 +133,17 @@
           </div>
         </template>
       </el-table-column>
-      <el-table-column label="结账方式" min-width="110">
+      <el-table-column label="结账方式" width="155">
         <template slot-scope="scope">
           {{ scope.row.payment_method || (scope.row.settlement_status === '未结账' ? '未结账' : '-') }}
         </template>
       </el-table-column>
-      <el-table-column prop="total_amount" label="总金额(元)" width="100">
+      <el-table-column prop="total_amount" label="总金额(元)" width="140">
         <template slot-scope="scope">
           {{ formatAmount(scope.row.total_amount) }}
         </template>
       </el-table-column>
-      <el-table-column label="发货状态" width="180" class-name="shipping-col">
+      <el-table-column label="发货状态" width="200" class-name="shipping-col">
         <template slot-scope="scope">
           <el-switch
             :value="scope.row.shipping_status === '已发货'"
@@ -170,7 +172,7 @@
           />
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="180" fixed="right">
+      <el-table-column label="操作" width="300" fixed="right">
         <template slot-scope="scope">
           <el-button
             type="primary"
@@ -458,6 +460,7 @@ export default {
       orders: [],
       reminderOrders: [],
       users: [],
+      salespersons: [],
       filters: createDefaultFilters(),
       loading: false,
       showDialog: false,
@@ -510,6 +513,7 @@ export default {
     if (this.isAdmin) {
       this.getUsers()
     }
+    this.getSalespersons()
     this.getOrders()
     this.getReminderOrders()
   },
@@ -552,6 +556,16 @@ export default {
         })
         .catch(() => {
           this.$message.error('制单员数据加载失败')
+        })
+    },
+    getSalespersons() {
+      axios.get('/salespersons')
+        .then(res => {
+          this.salespersons = res.data || []
+        })
+        .catch(() => {
+          this.salespersons = []
+          this.$message.error('业务员数据加载失败')
         })
     },
     buildParams(sourceFilters) {

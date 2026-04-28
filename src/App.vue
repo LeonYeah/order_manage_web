@@ -55,15 +55,15 @@
       >
         <el-menu-item index="/dashboard">首页</el-menu-item>
         <el-menu-item v-if="['admin', 'clerk'].includes(user.role)" index="/orders">制单</el-menu-item>
+        <el-menu-item v-if="['admin', 'clerk'].includes(user.role)" index="/products">商品管理</el-menu-item>
+        <el-menu-item v-if="['admin', 'clerk'].includes(user.role)" index="/orders-management">订单管理</el-menu-item>
+        <el-menu-item v-if="['admin', 'clerk'].includes(user.role)" index="/checkout-review">反结账管理</el-menu-item>
+        <el-menu-item v-if="['admin', 'clerk'].includes(user.role)" index="/draft-box">草稿箱</el-menu-item>
         <el-submenu v-if="user.role === 'admin'" index="user-center">
           <template slot="title">用户管理</template>
           <el-menu-item index="/users">制单员管理</el-menu-item>
           <el-menu-item index="/salespersons">业务员管理</el-menu-item>
         </el-submenu>
-        <el-menu-item v-if="['admin', 'clerk'].includes(user.role)" index="/products">商品管理</el-menu-item>
-        <el-menu-item v-if="['admin', 'clerk'].includes(user.role)" index="/orders-management">订单管理</el-menu-item>
-        <el-menu-item v-if="['admin', 'clerk'].includes(user.role)" index="/checkout-review">反结账管理</el-menu-item>
-        <el-menu-item v-if="['admin', 'clerk'].includes(user.role)" index="/draft-box">草稿箱</el-menu-item>
       </el-menu>
     </el-aside>
 

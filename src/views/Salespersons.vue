@@ -39,8 +39,14 @@
       </el-table>
     </el-card>
 
-    <el-dialog title="新增业务员" :visible.sync="createDialogVisible" width="460px">
-      <el-form ref="createFormRef" :model="createForm" :rules="createRules" label-width="110px">
+    <el-dialog title="新增业务员" :visible.sync="createDialogVisible" width="690px">
+      <el-form
+        ref="createFormRef"
+        :model="createForm"
+        :rules="createRules"
+        label-width="150px"
+        class="salesperson-dialog-form"
+      >
         <el-form-item label="业务员名称" prop="name">
           <el-input v-model.trim="createForm.name" maxlength="30" />
         </el-form-item>
@@ -51,10 +57,16 @@
       </div>
     </el-dialog>
 
-    <el-dialog title="删除业务员" :visible.sync="deleteDialogVisible" width="460px">
-      <el-form ref="deleteFormRef" :model="deleteForm" :rules="deleteRules" label-width="110px">
+    <el-dialog title="删除业务员" :visible.sync="deleteDialogVisible" width="690px">
+      <el-form
+        ref="deleteFormRef"
+        :model="deleteForm"
+        :rules="deleteRules"
+        label-width="150px"
+        class="salesperson-dialog-form"
+      >
         <el-form-item label="选择业务员" prop="salespersonId">
-          <el-select v-model="deleteForm.salespersonId" filterable placeholder="请选择业务员" style="width: 100%">
+          <el-select v-model="deleteForm.salespersonId" filterable placeholder="请选择业务员">
             <el-option
               v-for="item in salespersons"
               :key="item.id"
@@ -285,5 +297,14 @@ export default {
 .page-desc {
   margin: 8px 0 0;
   color: #909399;
+}
+
+.salesperson-dialog-form /deep/ .el-form-item__label {
+  white-space: nowrap;
+}
+
+.salesperson-dialog-form /deep/ .el-input,
+.salesperson-dialog-form /deep/ .el-select {
+  width: 100%;
 }
 </style>

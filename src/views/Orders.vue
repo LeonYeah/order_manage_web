@@ -48,7 +48,7 @@
           <el-select
             v-model="order.settlement_status"
             placeholder="选择结账状态"
-            style="width: 96px"
+            style="width: 130px"
             @change="handleSettlementStatusChange"
           >
             <el-option label="已结账" value="已结账" />
@@ -70,7 +70,7 @@
     </div>
 
     <el-table :data="order.items" class="order-table" style="width: 100%" border>
-      <el-table-column label="序号" type="index" width="60" />
+      <el-table-column label="序号" type="index" width="80" />
       <el-table-column label="商品编号/颜色" min-width="210">
         <template slot-scope="scope">
           <el-input
@@ -185,7 +185,7 @@
       </div>
       <div class="footer-item">
         订单备注：
-        <el-input v-model.trim="order.remark" placeholder="订单备注" style="width: 176px" />
+        <el-input v-model.trim="order.remark" placeholder="订单备注" style="width: 500px" />
       </div>
       <div class="footer-total">总金额：{{ order.total_amount.toFixed(2) }}元</div>
     </div>
@@ -625,13 +625,13 @@ export default {
 }
 
 .address-item {
-  flex: 1 1 420px;
+  flex: 1 1 378px;
   align-items: center;
 }
 
 .address-input {
   flex: 1;
-  min-width: 260px;
+  min-width: 234px;
   white-space: normal;
 }
 

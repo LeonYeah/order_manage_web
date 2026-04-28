@@ -36,26 +36,26 @@
       @row-dblclick="openDraftEditor"
     >
       <el-table-column type="index" label="序号" width="60" :index="draftIndexMethod" />
-      <el-table-column prop="customer_name" label="客户名称" min-width="140" />
-      <el-table-column prop="order_clerk" label="制单员" width="100" />
-      <el-table-column prop="salesperson" label="业务员" width="100" />
-      <el-table-column label="下单日期" width="100">
+      <el-table-column prop="customer_name" label="客户名称" min-width="120" show-overflow-tooltip />
+      <el-table-column prop="order_clerk" label="制单员" min-width="120" />
+      <el-table-column prop="salesperson" label="业务员" min-width="120" />
+      <el-table-column label="下单日期" min-width="120">
         <template slot-scope="scope">
           {{ formatCompactDate(scope.row.order_date) }}
         </template>
       </el-table-column>
-      <el-table-column label="结账状态" width="90">
+      <el-table-column label="结账状态" min-width="120">
         <template slot-scope="scope">
           {{ scope.row.settlement_status || '未结账' }}
         </template>
       </el-table-column>
-      <el-table-column prop="item_count" label="明细数" width="80" />
-      <el-table-column prop="total_amount" label="总金额(元)" width="100">
+      <el-table-column prop="item_count" label="明细数" min-width="120" />
+      <el-table-column prop="total_amount" label="总金额(元)" min-width="120">
         <template slot-scope="scope">
           {{ formatAmount(scope.row.total_amount) }}
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="200" fixed="right">
+      <el-table-column label="操作" width="400" fixed="right">
         <template slot-scope="scope">
           <el-button
             type="primary"

@@ -31,15 +31,15 @@
         empty-text="暂无用户数据"
       >
         <el-table-column type="index" label="序号" width="80" :index="userIndexMethod" />
-        <el-table-column prop="username" label="用户名" min-width="180" />
-        <el-table-column label="角色" width="140">
+        <el-table-column prop="username" label="用户名" min-width="300" />
+        <el-table-column label="角色" width="500">
           <template slot-scope="scope">
             <el-tag :type="isAdminRole(scope.row.role) ? 'danger' : 'success'">
               {{ isAdminRole(scope.row.role) ? '管理员' : '制单员' }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="created_at" label="创建时间" min-width="180">
+        <el-table-column prop="created_at" label="创建时间" min-width="300">
           <template slot-scope="scope">
             {{ formatDate(scope.row.created_at) }}
           </template>
@@ -60,7 +60,7 @@
     </el-card>
 
     <el-dialog title="新增用户" :visible.sync="createDialogVisible" width="460px">
-      <el-form ref="createForm" :model="createForm" :rules="createRules" label-width="90px">
+      <el-form ref="createForm" :model="createForm" :rules="createRules" label-width="90px" class="user-dialog-form">
         <el-form-item label="用户名" prop="username">
           <el-input v-model.trim="createForm.username" maxlength="30" />
         </el-form-item>
@@ -68,7 +68,7 @@
           <el-input v-model="createForm.password" type="password" show-password maxlength="30" />
         </el-form-item>
         <el-form-item label="角色" prop="role">
-          <el-select v-model="createForm.role" style="width: 100%">
+          <el-select v-model="createForm.role">
             <el-option label="管理员" value="admin" />
             <el-option label="制单员" value="clerk" />
           </el-select>
@@ -80,10 +80,16 @@
       </div>
     </el-dialog>
 
-    <el-dialog title="修改密码" :visible.sync="passwordDialogVisible" width="460px">
-      <el-form ref="passwordForm" :model="passwordForm" :rules="passwordRules" label-width="110px">
-        <el-form-item label="选择用户" prop="userId">
-          <el-select v-model="passwordForm.userId" filterable placeholder="请选择用户" style="width: 100%">
+    <el-dialog title="修改密码" :visible.sync="passwordDialogVisible" width="690px">
+      <el-form
+        ref="passwordForm"
+        :model="passwordForm"
+        :rules="passwordRules"
+        label-width="140px"
+        class="user-dialog-form"
+      >
+        <el-form-item label="选择用户" prop="userId" label-width="150px">
+          <el-select v-model="passwordForm.userId" filterable placeholder="请选择用户">
             <el-option
               v-for="item in users"
               :key="item.id"
@@ -92,10 +98,10 @@
             />
           </el-select>
         </el-form-item>
-        <el-form-item label="新的登录密码" prop="password">
+        <el-form-item label="新的登录密码" prop="password" label-width="150px">
           <el-input v-model="passwordForm.password" type="password" show-password maxlength="30" />
         </el-form-item>
-        <el-form-item label="再次输入密码" prop="confirmPassword">
+        <el-form-item label="再次输入密码" prop="confirmPassword" label-width="150px">
           <el-input v-model="passwordForm.confirmPassword" type="password" show-password maxlength="30" />
         </el-form-item>
       </el-form>
@@ -189,6 +195,7 @@ export default {
           { required: true, message: '请输入新的登录密码', trigger: 'blur' }
         ],
         confirmPassword: [
+          { required: true, message: '请再次输入密码', trigger: 'blur' },
           { validator: validateConfirmPassword, trigger: 'blur' }
         ]
       },
@@ -436,5 +443,15 @@ export default {
 .page-tip {
   font-size: 13px;
   color: #606266;
+}
+
+.user-dialog-form /deep/ .el-form-item__label {
+  white-space: nowrap;
+  text-align: left;
+}
+
+.user-dialog-form /deep/ .el-input,
+.user-dialog-form /deep/ .el-select {
+  width: 100%;
 }
 </style>
