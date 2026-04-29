@@ -532,7 +532,9 @@ export default {
       return (item && item.product_name) || ''
     },
     buildPrintHtml() {
-      const rows = (this.items || []).map((item, index) => `
+      const items = this.items || []
+      const useFourCopiesOnOnePage = items.length <= 4
+      const rows = items.map((item, index) => `
         <tr>
           <td>${index + 1}</td>
           <td>${this.printCell([item.product_code, item.color].filter(Boolean).join('/'))}</td>
@@ -544,7 +546,7 @@ export default {
         </tr>
       `).join('')
       const orderRemarkRow = `
-        <tr>
+        <tr class="order-remark-row">
           <td class="order-remark-label" colspan="2">订单备注</td>
           <td class="order-remark-content" colspan="5">${this.printCell(this.order.remark)}</td>
         </tr>
@@ -575,6 +577,26 @@ export default {
           </table>
         </section>
       `
+      const printBody = useFourCopiesOnOnePage
+        ? `
+          <div class="sheet">
+            ${copySection}
+            <div class="copy-sep"></div>
+            ${copySection}
+            <div class="copy-sep"></div>
+            ${copySection}
+            <div class="copy-sep"></div>
+            ${copySection}
+          </div>
+        `
+        : `
+          <div class="single-sheet">
+            ${copySection}
+            ${copySection}
+            ${copySection}
+            ${copySection}
+          </div>
+        `
 
       return `
         <!DOCTYPE html>
@@ -587,28 +609,24 @@ export default {
             body { font-family: "Microsoft YaHei", sans-serif; margin: 0; color: #111; }
             .sheet { height: 280mm; display: flex; flex-direction: column; }
             .copy { flex: 1; min-height: 0; overflow: hidden; }
+            .single-sheet .copy { min-height: 280mm; overflow: visible; page-break-after: always; break-after: page; }
+            .single-sheet .copy:last-child { page-break-after: auto; break-after: auto; }
             .copy-sep { border-top: 1px dashed #666; margin: 2mm 0; }
             .title { text-align: center; font-size: 14px; font-weight: 700; margin-bottom: 6px; }
-            .meta { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-bottom: 6px; font-size: 10px; }
+            .meta { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-bottom: 6px; font-size: 14px; }
             .meta > div { max-width: 100%; }
             .address-line { flex-basis: 100%; white-space: normal; overflow-wrap: anywhere; word-break: break-all; line-height: 1.25; }
             table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-            th, td { border: 1px solid #333; padding: 2px 2px; font-size: 9px; text-align: center; word-break: break-all; line-height: 1.2; }
+            th, td { border: 1px solid #333; padding: 2px 2px; font-size: 14px; text-align: center; word-break: break-all; line-height: 1.2; }
             thead th { background: #f3f3f3; font-weight: 600; }
-            .order-remark-label { font-weight: 600; background: #f3f3f3; }
-            .order-remark-content { text-align: left; padding-left: 4px; }
+            .order-remark-row { min-height: 24px; }
+            .order-remark-row td { height: 24px; line-height: 1.25; vertical-align: top; }
+            .order-remark-label { font-weight: 600; background: #f3f3f3; text-align: left; padding-left: 4px; }
+            .order-remark-content { text-align: left; padding-left: 4px; white-space: normal; overflow-wrap: anywhere; word-break: break-all; }
           </style>
         </head>
         <body>
-          <div class="sheet">
-            ${copySection}
-            <div class="copy-sep"></div>
-            ${copySection}
-            <div class="copy-sep"></div>
-            ${copySection}
-            <div class="copy-sep"></div>
-            ${copySection}
-          </div>
+          ${printBody}
         </body>
         </html>
       `
