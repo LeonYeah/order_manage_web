@@ -1,7 +1,7 @@
 ﻿<template>
   <div class="login-page">
     <div class="login-card">
-      <h1 class="login-title">登录</h1>
+      <h1 class="login-title">订单管理系统</h1>
       <el-form @submit.native.prevent="login">
         <el-form-item>
           <el-input v-model="username" placeholder="请输入用户名" @keyup.enter.native="login" />

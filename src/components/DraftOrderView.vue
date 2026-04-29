@@ -185,7 +185,7 @@
         </div>
         <div class="footer-item">
           订单备注：
-          <el-input v-model.trim="draft.remark" size="small" style="width: 176px" placeholder="订单备注" />
+          <el-input v-model.trim="draft.remark" size="small" style="width: 300px" placeholder="订单备注" />
         </div>
         <div class="footer-total">总金额：{{ Number(draft.total_amount || 0).toFixed(2) }}元</div>
       </div>

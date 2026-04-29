@@ -306,6 +306,21 @@ export default {
     },
     getOrders() {
       this.loading = true
+      if (this.isAdmin) {
+        axios.get('/orders/reverse-checkout', { params: this.buildReverseParams() })
+          .then(reverseRes => {
+            const reverseOrders = this.normalizeReverseOrders(reverseRes.data || [])
+            this.orders = this.filterMergedOrders(reverseOrders)
+            this.currentPage = 1
+          })
+          .catch(() => {
+            this.$message.error('审核单据加载失败')
+          })
+          .finally(() => {
+            this.loading = false
+          })
+        return
+      }
       Promise.all([
         axios.get('/orders/review', { params: this.buildReviewParams() }),
         axios.get('/orders/reverse-checkout', { params: this.buildReverseParams() })

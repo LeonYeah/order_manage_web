@@ -23,7 +23,24 @@
         <el-input v-model.trim="filters.customer_name" placeholder="输入客户名称" clearable />
       </el-form-item>
       <el-form-item label="商品编号">
-        <el-input v-model.trim="filters.product_code" placeholder="输入商品编号" clearable />
+        <el-input v-model.trim="filters.product_code" placeholder="商品编号/颜色" clearable />
+      </el-form-item>
+      <el-form-item v-if="isAdmin" label="商品名称">
+        <el-select
+          v-model="filters.product_name"
+          filterable
+          clearable
+          allow-create
+          default-first-option
+          placeholder="输入或选择商品名称"
+        >
+          <el-option
+            v-for="name in productNameOptions"
+            :key="name"
+            :label="name"
+            :value="name"
+          />
+        </el-select>
       </el-form-item>
       <el-form-item label="下单日期">
         <el-date-picker
@@ -95,7 +112,7 @@
     >
       <el-table-column prop="order_number" label="订单编号" width="132" />
       <el-table-column prop="customer_name" label="客户名称" width="118" />
-      <el-table-column prop="product_codes" label="商品编号/颜色" min-width="100" class-name="product-codes-col">
+      <el-table-column prop="product_codes" label="商品编号/颜色" min-width="140" class-name="product-codes-col">
         <template slot-scope="scope">
           <div v-if="getProductCodeList(scope.row).length" class="product-code-list">
             <div
@@ -110,7 +127,22 @@
           <span v-else>-</span>
         </template>
       </el-table-column>
-      <el-table-column prop="order_clerk" label="制单员" width="120">
+      <el-table-column prop="product_names" label="商品名称" min-width="130" class-name="product-names-col">
+        <template slot-scope="scope">
+          <div v-if="getProductNameList(scope.row).length" class="product-name-list">
+            <div
+              v-for="(name, index) in getProductNameList(scope.row).slice(0, 3)"
+              :key="`${name}-${index}`"
+              class="product-name-line"
+            >
+              {{ name }}
+            </div>
+            <div v-if="getProductNameList(scope.row).length > 3" class="product-name-line">...</div>
+          </div>
+          <span v-else>-</span>
+        </template>
+      </el-table-column>
+      <el-table-column prop="order_clerk" label="制单员" width="110">
         <template slot-scope="scope">
           {{ scope.row.order_clerk || scope.row.clerk_name || '-' }}
         </template>
@@ -121,7 +153,7 @@
           {{ formatCompactDate(scope.row.order_date) }}
         </template>
       </el-table-column>
-      <el-table-column label="结账状态" width="144">
+      <el-table-column label="结账状态" width="120">
         <template slot-scope="scope">
           <div class="settlement-status-cell">
             <el-tag :type="scope.row.settlement_status === '未结账' ? 'danger' : 'success'" size="mini">
@@ -133,12 +165,12 @@
           </div>
         </template>
       </el-table-column>
-      <el-table-column label="结账方式" width="155">
+      <el-table-column label="结账方式" width="150">
         <template slot-scope="scope">
           {{ scope.row.payment_method || (scope.row.settlement_status === '未结账' ? '未结账' : '-') }}
         </template>
       </el-table-column>
-      <el-table-column prop="total_amount" label="总金额(元)" width="140">
+      <el-table-column prop="total_amount" label="总金额(元)" width="130">
         <template slot-scope="scope">
           {{ formatAmount(scope.row.total_amount) }}
         </template>
@@ -149,6 +181,7 @@
             :value="scope.row.shipping_status === '已发货'"
             active-text="已发货"
             inactive-text="未发货"
+            :disabled="isOrderSubmittedLocked(scope.row)"
             @change="toggleShipping(scope.row, $event)"
           />
         </template>
@@ -157,18 +190,8 @@
         <template slot-scope="scope">
           <el-input
             v-model.trim="scope.row.tracking_number"
-            :disabled="scope.row.shipping_status !== '已发货'"
+            :disabled="scope.row.shipping_status !== '已发货' || isOrderSubmittedLocked(scope.row)"
             placeholder="发货后填写"
-          />
-        </template>
-      </el-table-column>
-      <el-table-column prop="remark" label="备注" min-width="180">
-        <template slot-scope="scope">
-          <el-input
-            v-model.trim="scope.row.remark"
-            type="textarea"
-            :rows="2"
-            placeholder="备注"
           />
         </template>
       </el-table-column>
@@ -178,6 +201,7 @@
             type="primary"
             size="mini"
             :loading="scope.row.updating"
+            :disabled="isOrderSubmittedLocked(scope.row)"
             @click="updateShipping(scope.row)"
           >
             提交
@@ -185,7 +209,7 @@
           <el-button
             size="mini"
             type="danger"
-            :disabled="scope.row.shipping_status === '已发货'"
+            :disabled="isOrderSubmittedLocked(scope.row) || scope.row.shipping_status === '已发货'"
             :loading="scope.row.deleting"
             @click="deleteOrder(scope.row)"
           >
@@ -235,6 +259,7 @@ function createDefaultFilters() {
   return {
     customer_name: '',
     product_code: '',
+    product_name: '',
     start_date: '',
     end_date: '',
     clerk_id: null,
@@ -461,6 +486,7 @@ export default {
       reminderOrders: [],
       users: [],
       salespersons: [],
+      products: [],
       filters: createDefaultFilters(),
       loading: false,
       showDialog: false,
@@ -496,6 +522,13 @@ export default {
       const start = (this.currentPage - 1) * this.pageSize
       return this.orders.slice(start, start + this.pageSize)
     },
+    productNameOptions() {
+      return Array.from(new Set(
+        this.products
+          .map(item => String(item.name || '').trim())
+          .filter(Boolean)
+      ))
+    },
     summaryTotal() {
       return this.orders.length
     },
@@ -512,6 +545,7 @@ export default {
     document.addEventListener('click', this.closeContextMenu)
     if (this.isAdmin) {
       this.getUsers()
+      this.getProducts()
     }
     this.getSalespersons()
     this.getOrders()
@@ -530,6 +564,22 @@ export default {
         .split(/[,，、\n\r]+/)
         .map(item => item.trim())
         .filter(Boolean)
+    },
+    getProductNameList(row) {
+      if (row && Array.isArray(row.items) && row.items.length) {
+        return row.items
+          .map(item => String(item.product_name || '').trim())
+          .filter(Boolean)
+      }
+
+      const text = row && row.product_names ? String(row.product_names) : ''
+      return text
+        .split(/[,，、\n\r]+/)
+        .map(item => item.trim())
+        .filter(Boolean)
+    },
+    isOrderSubmittedLocked(row) {
+      return !!row && row.submitted_locked
     },
     formatCompactDate(value) {
       if (!value) return '-'
@@ -568,11 +618,23 @@ export default {
           this.$message.error('业务员数据加载失败')
         })
     },
+    getProducts() {
+      axios.get('/products')
+        .then(res => {
+          this.products = res.data || []
+        })
+        .catch(() => {
+          this.products = []
+          this.$message.error('商品列表加载失败')
+        })
+    },
     buildParams(sourceFilters) {
       const params = { ...sourceFilters }
       params.product_code = String(params.product_code || '').trim()
+      params.product_name = String(params.product_name || '').trim()
       if (!this.isAdmin) {
         params.clerk_id = this.currentUser.id
+        delete params.product_name
       }
       Object.keys(params).forEach(key => {
         if (params[key] === '' || params[key] === null || params[key] === undefined) {
@@ -582,16 +644,21 @@ export default {
       return params
     },
     normalizeOrders(list) {
-      return (list || []).map(item => ({
-        ...item,
-        shipping_status: item.shipping_status || '未发货',
-        settlement_status: item.settlement_status || '已结账',
-        tracking_number: item.tracking_number || '',
-        payment_method: item.payment_method || '',
-        remark: item.remark || '',
-        updating: false,
-        deleting: false
-      }))
+      return (list || []).map(item => {
+        const shippingStatus = item.shipping_status || '未发货'
+        const settlementStatus = item.settlement_status || '已结账'
+        return {
+          ...item,
+          shipping_status: shippingStatus,
+          settlement_status: settlementStatus,
+          tracking_number: item.tracking_number || '',
+          payment_method: item.payment_method || '',
+          product_names: item.product_names || '',
+          submitted_locked: shippingStatus === '已发货',
+          updating: false,
+          deleting: false
+        }
+      })
     },
     getOrders() {
       const params = this.buildParams(this.filters)
@@ -629,29 +696,49 @@ export default {
         })
     },
     toggleShipping(row, value) {
+      if (this.isOrderSubmittedLocked(row)) return
       row.shipping_status = value ? '已发货' : '未发货'
       if (!value) {
         row.tracking_number = ''
-        this.updateShipping(row)
       }
     },
     updateShipping(row) {
       if (row.updating) return
-      row.updating = true
-      axios.put(`/orders/${row.id}`, {
-        shipping_status: row.shipping_status || '未发货',
-        tracking_number: row.shipping_status === '已发货' ? row.tracking_number : '',
-        remark: row.remark || ''
+      if (this.isOrderSubmittedLocked(row)) {
+        this.$message.error('订单已提交，如需修改请先申请反结账')
+        return
+      }
+      if (row.shipping_status !== '已发货') {
+        this.$message.error('请先将发货状态设置为已发货')
+        return
+      }
+      if (!String(row.tracking_number || '').trim()) {
+        this.$message.error('请填写运单号')
+        return
+      }
+
+      this.$confirm('确认提交该订单的发货信息吗？提交后如需修改，需要先申请反结账。', '确认提交', {
+        confirmButtonText: '确认',
+        cancelButtonText: '取消',
+        type: 'warning'
       }).then(() => {
-        this.$message.success('订单状态已更新')
-        this.getReminderOrders()
-      }).catch(error => {
-        const serverMessage = error && error.response && error.response.data && error.response.data.msg
-        this.$message.error(serverMessage || '订单状态更新失败')
-        this.getOrders()
-      }).finally(() => {
-        row.updating = false
-      })
+        row.updating = true
+        return axios.put(`/orders/${row.id}`, {
+          shipping_status: row.shipping_status || '未发货',
+          tracking_number: row.tracking_number
+        }).then(() => {
+          row.submitted_locked = row.shipping_status === '已发货'
+          this.$message.success('订单状态已提交')
+          this.getOrders()
+          this.getReminderOrders()
+        }).catch(error => {
+          const serverMessage = error && error.response && error.response.data && error.response.data.msg
+          this.$message.error(serverMessage || '订单状态提交失败')
+          this.getOrders()
+        }).finally(() => {
+          row.updating = false
+        })
+      }).catch(() => {})
     },
     deleteOrder(row) {
       if (row.shipping_status === '已发货') return
@@ -973,19 +1060,22 @@ export default {
   white-space: nowrap;
 }
 
-.orders-management .product-codes-col .cell {
+.orders-management .product-codes-col .cell,
+.orders-management .product-names-col .cell {
   white-space: normal !important;
   line-height: 20px;
 }
 
-.orders-management .product-code-list {
+.orders-management .product-code-list,
+.orders-management .product-name-list {
   display: inline-flex;
   flex-direction: column;
   align-items: flex-start;
   max-width: 100%;
 }
 
-.orders-management .product-code-line {
+.orders-management .product-code-line,
+.orders-management .product-name-line {
   max-width: 100%;
   white-space: normal !important;
   overflow-wrap: anywhere;
