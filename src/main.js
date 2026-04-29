@@ -5,6 +5,7 @@ import ElementUI from 'element-ui'
 import locale from 'element-ui/lib/locale/lang/zh-CN'
 import 'element-ui/lib/theme-chalk/index.css'
 import axios from 'axios'
+import { Message } from 'element-ui'
 
 Vue.use(ElementUI, { locale })
 
@@ -14,6 +15,34 @@ axios.interceptors.request.use(config => {
   if (token) config.headers.Authorization = token
   return config
 })
+
+let hasShownExpiredMessage = false
+
+axios.interceptors.response.use(
+  response => response,
+  error => {
+    const status = error && error.response && error.response.status
+
+    if (status === 401) {
+      sessionStorage.removeItem('token')
+      sessionStorage.removeItem('user')
+
+      if (!hasShownExpiredMessage) {
+        hasShownExpiredMessage = true
+        Message.error('登录已过期，请重新登录')
+        setTimeout(() => {
+          hasShownExpiredMessage = false
+        }, 1000)
+      }
+
+      if (router.currentRoute.path !== '/login') {
+        router.replace('/login')
+      }
+    }
+
+    return Promise.reject(error)
+  }
+)
 
 function getSessionUser() {
   const raw = sessionStorage.getItem('user')

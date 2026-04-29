@@ -14,7 +14,7 @@
         </div>
         <div class="meta-item">
           电话号码：
-          <el-input v-model.trim="order.customer_phone" style="width: 130px" />
+          <el-input v-model.trim="order.customer_phone" style="width: 160px" />
         </div>
         <div class="meta-item address-item">
           收件地址：
@@ -441,8 +441,8 @@ export default {
         })
       }
     },
-    submitOrder() {
-      if (!this.validateOrder()) return Promise.resolve(null)
+    submitOrder(shouldValidate = true) {
+      if (shouldValidate && !this.validateOrder()) return Promise.resolve(null)
 
       return axios.post('/orders', this.buildPayload())
         .then(response => {
@@ -482,13 +482,24 @@ export default {
         })
     },
     saveAndPrint() {
-      this.savingAndPrinting = true
-      this.submitOrder().then(saved => {
-        if (!saved) return
-        this.printOrder()
-        this.refreshOrderNumber()
-      }).finally(() => {
-        this.savingAndPrinting = false
+      if (!this.validateOrder()) return
+
+      this.$confirm('确认提交并打印该订单吗？', '提示', {
+        confirmButtonText: '确认',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }).then(() => {
+        this.savingAndPrinting = true
+        return this.submitOrder(false).then(saved => {
+          if (!saved) return
+          this.printOrder()
+          this.refreshOrderNumber()
+        }).finally(() => {
+          this.savingAndPrinting = false
+        })
+      }).catch(error => {
+        if (error === 'cancel' || error === 'close') return
+        throw error
       })
     },
     escapeHtml(value) {
